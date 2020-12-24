@@ -16,13 +16,17 @@ struct Hull {
     // next vertex index  of the ith vertex on the frontier
     next: Vec<usize>,
     num: usize,
+
+    first: usize,
+    min_vertex: f32,
 }
 
 const UNASSIGNED: usize = std::usize::MAX;
 use crate::coord::Point2;
 impl Hull {
-    fn new(num_points: usize, first_vertex_idx: usize) -> Self {
-        let n = (num_points as f32).sqrt().ceil() as usize;
+    fn new(num_points: usize, first_vertex_idx: usize, points: &[Point2]) -> Self {
+        //let n = (num_points as f32).sqrt().ceil() as usize;
+        let n = num_points;
         let num = 1;
         let mut vertices = vec![UNASSIGNED; n];
         let mut prev = vec![UNASSIGNED; n];
@@ -33,12 +37,16 @@ impl Hull {
         next[0] = first_vertex_idx;
         prev[0] = first_vertex_idx;
 
+        let first = 0;
+        let min_vertex = points[0].y;
         Self {
             vertices,
             empty,
             next,
             prev,
             num,
+            first,
+            min_vertex,
         }
     }
 
@@ -49,6 +57,7 @@ impl Hull {
         cur_idx: usize,
         // The vertex idx to insert
         vertex_idx: usize,
+        points: &[Point2],
     ) {
         // Get the location where to insert vertex idx
         let idx = if self.empty.is_empty() {
@@ -67,12 +76,18 @@ impl Hull {
 
         self.num += 1;
         self.vertices[idx] = vertex_idx;
+
+        if points[vertex_idx].y < self.min_vertex {
+            self.min_vertex = points[vertex_idx].y;
+            self.first = idx;
+        }
     }
 
     fn remove(
         &mut self,
         // The vertex to remove from the hull
         cur_idx: usize,
+        points: &[Point2]
     ) {
         let next_cur = self.next[cur_idx];
         let prev_cur = self.prev[cur_idx];
@@ -82,6 +97,18 @@ impl Hull {
 
         self.empty.push(cur_idx);
         self.num -= 1;
+
+        if cur_idx == dbg!(self.first) {
+            let prev_vertex_idx = self.vertices[prev_cur];
+            let next_vertex_idx = self.vertices[next_cur];
+            if points[prev_vertex_idx].y < points[next_vertex_idx].y {
+                self.first = prev_cur;
+                self.min_vertex = dbg!(points[prev_vertex_idx].y);
+            } else {
+                self.first = next_cur;
+                self.min_vertex = dbg!(points[next_vertex_idx].y);
+            }
+        }
     }
 
     fn next(&self, idx: usize) -> usize {
@@ -94,8 +121,9 @@ impl Hull {
         self.vertices[prev_idx]
     }
 
-    fn edges<'a>(&'a self, starting_idx: usize) -> EdgeIterator<'a> {
+    fn edges<'a>(&'a self) -> EdgeIterator<'a> {
         EdgeIterator {
+            cur: self.first,
             num: 0,
             hull: self,
         }
@@ -105,10 +133,11 @@ impl Hull {
 struct EdgeIterator<'a> {
     hull: &'a Hull,
     // num edges processed
-    num: usize,
+    cur: usize,
+    num: usize
 }
 
-/*impl<'a> Iterator for EdgeIterator<'a> {
+impl<'a> Iterator for EdgeIterator<'a> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -116,13 +145,19 @@ struct EdgeIterator<'a> {
         if self.num == self.hull.num - 1 {
             None
         } else {
-            let u = self.hull.vertices[]
+            let cur = self.cur;
+            let next_cur = self.hull.next[cur];
 
+            let u = self.hull.vertices[cur];
+            let v = self.hull.vertices[next_cur];
 
             self.num += 1;
+            self.cur = next_cur;
+
+            Some((u, v))
         }
     }
-}*/
+}
 
 trait Vertex {
     /// Check if the vertex is in the circumcircle defined
@@ -211,6 +246,33 @@ mod tests {
             println!("{:?}", t);
         }*/
     }
+
+    use super::Hull;
+    #[test]
+    fn test_hull_iter() {
+        println!("aaaaa");
+        let vertices: &[Point2] = &[
+            Point2::new(0.76809347, 0.17880994),
+            Point2::new(0.14206064, 0.8896956),
+            Point2::new(0.007408619, 0.17449331),
+        ];
+
+        let mut hull = Hull::new(3, 2, vertices);
+        hull.insert_after(0, 1, vertices);
+        hull.insert_after(0, 0, vertices);
+
+        for e in hull.edges() {
+            println!("{:?}", e);
+        }
+        println!("sdfsfsf ");
+        hull.remove(0, vertices);
+
+        for e in hull.edges() {
+            println!("{:?}", e);
+        }
+
+    }
+
     // use image::{Rgb, RgbImage};
     // use imageproc::drawing::draw_line_segment_mut;
     // #[test]
