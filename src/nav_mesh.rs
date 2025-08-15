@@ -9,6 +9,7 @@ pub(crate) struct NavMesh {
     pub triangulation: Vec<[usize; 3]>,
     pub vertices: Vec<Point2>
 }
+
 fn build_nav_mesh() -> NavMesh {
     let gradient = Gradient::new();
 
