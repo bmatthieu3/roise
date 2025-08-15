@@ -64,7 +64,7 @@ fn det(u: &Point2, v: &Point2) -> f32 {
     u.x * v.y - u.y * v.x
 }
 
-fn barycenter(u: &Point2, v: &Point2, w: &Point2) -> Point2 {
+pub fn barycenter(u: &Point2, v: &Point2, w: &Point2) -> Point2 {
     (u + v + w)/3.0
 }
 
@@ -82,7 +82,7 @@ fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertic
     } else if let Some(_) = intersection(&b, up, wp, xp) {
         (w, x)
     } else {
-        assert!(intersection(&b, up, xp, vp).is_some());
+        //assert!(intersection(&b, dbg!(up), dbg!(xp), dbg!(vp)).is_some());
         // If it does not intersect (v, w) nor (w, x)
         // it has to intersect (x, v)
         (x, v)
@@ -181,7 +181,7 @@ impl DelaunayTriangulation {
         self.vertices.insert((w, u), v);
     }
 
-    fn delete_triangle(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx) {
+    pub fn delete_triangle(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx) {
         self.triangles.remove(&(u, v)); 
         self.triangles.remove(&(v, w));
         self.triangles.remove(&(w, u));
@@ -260,7 +260,33 @@ fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, verti
     a1*b2*c3 + a2*b3*c1 + b1*c2*a3 - c1*b2*a3 - c2*b3*a1 - b1*a2*c3 > 0.0
 }
 
-pub fn triangulate2(vertices: &[na::Point2<f32>]) -> DelaunayTriangulation {
+pub fn triangulate2(vertices: &[Point2]) -> DelaunayTriangulation {
+    let super_vertices = &[
+        Point2::new(-3.0, -1.0),
+        Point2::new(3.0, -1.0),
+        Point2::new(0.0, 3.0),
+    ];
+
+    let vertices = unsafe {
+        std::slice::from_raw_parts(vertices.as_ptr() as *const Point2, vertices.len())
+    };
+    let mut c = DelaunayTriangulation::new();
+
+    for (idx_vertex, vertex) in vertices.iter().enumerate() {
+        let u = VertexIdx::Vertices(idx_vertex);
+        //c = dbg!(c);
+
+        if let Some((v, w, x)) = c.get_triangle_whose_circle_encloses_u(u, vertices, super_vertices) {
+            c.insert_vertex(u, v, w, x, vertices, super_vertices);
+        } else {
+            panic!("the vertex {:?} is outside the triangulation", vertex);
+        }
+    }
+
+    c
+}
+
+pub fn create_nav_mesh(vertices: &[Point2]) -> DelaunayTriangulation {
     let super_vertices = &[
         Point2::new(-3.0, -1.0),
         Point2::new(3.0, -1.0),
@@ -308,10 +334,10 @@ mod tests {
     #[test]
     fn test_triangulate_3_points() {
         println!("aaaaa");
-        let vertices: &[na::Point2<f32>] = &[
-            na::Point2::new(0.76809347, 0.17880994),
-            na::Point2::new(0.14206064, 0.8896956),
-            na::Point2::new(0.007408619, 0.17449331),
+        let vertices: &[Point2] = &[
+            Point2::new(0.76809347, 0.17880994),
+            Point2::new(0.14206064, 0.8896956),
+            Point2::new(0.007408619, 0.17449331),
         ];
         for t in triangulate2(&vertices).into_iter() {
             println!("{:?}", t);
@@ -323,7 +349,7 @@ mod tests {
     fn test_triangulate_complex() {
         let num_vertices = 1000;
         let vertices = (0..num_vertices)
-            .map(|_| na::Point2::new(rand::random::<f32>(), rand::random::<f32>()))
+            .map(|_| Point2::new(rand::random::<f32>(), rand::random::<f32>()))
             .collect::<Vec<_>>();
         
         /*for t in triangulate2(&vertices).into_iter() {

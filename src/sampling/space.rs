@@ -1,9 +1,7 @@
 use std::marker::Sized;
-use super::partition::EqualSizedGrid;
 use crate::coord::{Vertex, Point2};
 pub trait Space: Sized {
     type Sample: Vertex;
-    type Partition: EqualSizedGrid<Sp=Self>;
 
     fn inside(&self, p: &Self::Sample) -> bool;
 
@@ -40,11 +38,9 @@ where
 }
 
 use std::ops::Fn;
-use super::partition::Equal2DSizedGrid;
 impl<F> Space for TwoDim<F>
 where F: Fn(&Point2) -> bool {
     type Sample = Point2;
-    type Partition = Equal2DSizedGrid<F>;
 
     fn random_unconstrained() -> Self::Sample {
         Point2::new(

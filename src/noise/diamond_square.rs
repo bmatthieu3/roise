@@ -52,7 +52,7 @@ impl DiamondSquare {
                 }
                 for x in (offset..(SIZE as i32)).step_by(step_size) {
                     let mut num_acc = 0;
-                    let x_off = dbg!(x) as i32;
+                    let x_off = x as i32;
                     pixels[y as usize][x_off as usize] = 0.0;
 
                     if x_off - half_step >= 0 {
@@ -110,15 +110,6 @@ impl Noise<Point2> for DiamondSquare {
 mod tests {
     use super::{DiamondSquare, SIZE};
     use image::{ImageBuffer, Luma, Rgb};
-    #[test]
-    fn test_diamond_square2() {
-        let green = [0, 255, 0];
-        let red = [255, 0, 0];
-
-        let mut image = ImageBuffer::<Rgb<u8>, Vec<u8>>::new(200, 200);
-        image.put_pixel(5, 5, Rgb(green));
-        image.save("output1.png");
-    }
 
     #[test]
     fn test_diamond_square() {

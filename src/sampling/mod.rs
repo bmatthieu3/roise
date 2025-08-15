@@ -1,10 +1,11 @@
 mod space;
-mod partition;
-mod poisson_disc;
+mod poisson;
 mod random_uniform;
+mod constant_step;
 
-pub use poisson_disc::{PoissonDisc, CustomDensity};
+pub use poisson::{PoissonDisc, CustomDensity};
 pub use random_uniform::RandUniform;
+pub use constant_step::ConstantStepUniform;
 
 pub use space::{Space, TwoDim};
 pub trait Sampler<Sp>

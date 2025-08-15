@@ -12,6 +12,8 @@ where
     s: std::marker::PhantomData<Sp>
 }
 
+mod partition;
+use partition::EqualSizedGrid;
 impl<Sp, D> PoissonDisc<Sp, D>
 where
     Sp: Space,
@@ -24,7 +26,7 @@ where
         }
     }
 
-    fn is_sampler_valid(grid: &<Sp as Space>::Partition, p: &<Sp as Space>::Sample, samples: &[<Sp as Space>::Sample], min_dist2: f32) -> bool {
+    fn is_sampler_valid<G: EqualSizedGrid>(grid: &G, p: &<<G as EqualSizedGrid>::Sp as space::Space>::Sample, samples: &[<<G as EqualSizedGrid>::Sp as space::Space>::Sample], min_dist2: f32) -> bool {
         let mut neighbors = grid.neighbors(p, samples);
         while let Some(vertex_idx) = neighbors.pop() {
             for &id in vertex_idx {
@@ -40,21 +42,22 @@ where
         true
     }
 }
-
-use super::partition::EqualSizedGrid;
+use crate::sampling::TwoDim;
+use partition::Equal2DSizedGrid;
 use crate::coord::Vertex;
 const NUM_NEW_POINTS: usize = 10;
 use super::{Sampler, Space};
-impl<Sp, D> Sampler<Sp> for PoissonDisc<Sp, D>
+use crate::sampling::space;
+impl<D, F> Sampler<TwoDim<F>> for PoissonDisc<TwoDim<F>, D>
 where
-    Sp: Space,
-    D: Density<Sp>
+    D: Density<TwoDim<F>>,
+    F: Fn(&Point2) -> bool
 {
-    fn sample(&self, space: &Sp) -> Vec<Sp::Sample> {
+    fn sample(&self, space: &TwoDim<F>) -> Vec<<TwoDim<F> as space::Space>::Sample> {
         let max = self.min_dist.max();
         let cell_size = max / 2_f32.sqrt();
 
-        let mut grid = Sp::Partition::new(cell_size);
+        let mut grid: Equal2DSizedGrid<F> = Equal2DSizedGrid::new(cell_size);
 
         let sample = space.random();
 
@@ -176,10 +179,6 @@ mod tests {
                 }
             )
         );
-        let vertices = vertices
-            .into_iter()
-            .map(|p| <na::Point2<f32> as From<Point2>>::from(p))
-            .collect::<Vec<_>>();
 
         /*let (w, h) = (512.0, 512.0);
         let mut img = RgbImage::new(w as u32, h as u32);

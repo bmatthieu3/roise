@@ -15,6 +15,7 @@ mod triangulation;
 mod sweep_line_triangulation;
 mod noise;
 pub use triangulation::triangulate2;
+mod nav_mesh;
 
 extern crate nalgebra as na;
 use crate::coord::Point2;

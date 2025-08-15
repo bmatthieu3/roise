@@ -2,11 +2,11 @@
 pub struct Gradient;
 
 impl Gradient {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {}
     }
 
-    fn fbm(&self, p: &Point2, amplitude_factor: f32, freq_factor: f32) -> f32 {
+    pub fn fbm(&self, p: &Point2, amplitude_factor: f32, freq_factor: f32) -> f32 {
         let octave = 4;
         let mut amplitude = 1.0;
         let mut freq = 1.0;
@@ -125,11 +125,6 @@ mod tests {
                 |p| true
             )
         );
-
-        let vertices = vertices
-            .into_iter()
-            .map(|p| <na::Point2<f32> as From<Point2>>::from(p))
-            .collect::<Vec<_>>();
 
         /*let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
