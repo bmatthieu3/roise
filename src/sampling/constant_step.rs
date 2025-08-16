@@ -14,7 +14,7 @@ impl ConstantStepUniform {
 use super::{Sampler, Space};
 impl<F> Sampler<TwoDim<F>> for ConstantStepUniform
 where
-    F: Fn(&Point2) -> bool
+    F: Fn(&Point2<f32>) -> bool
 {
     fn sample(&self, space: &TwoDim<F>) -> Vec<<TwoDim<F> as Space>::Sample> {
         let num_cell_side = (1.0 / self.cell_size) as usize + 1;

@@ -51,7 +51,7 @@ use crate::sampling::space;
 impl<D, F> Sampler<TwoDim<F>> for PoissonDisc<TwoDim<F>, D>
 where
     D: Density<TwoDim<F>>,
-    F: Fn(&Point2) -> bool
+    F: Fn(&Point2<f32>) -> bool
 {
     fn sample(&self, space: &TwoDim<F>) -> Vec<<TwoDim<F> as space::Space>::Sample> {
         let max = self.min_dist.max();
@@ -147,7 +147,7 @@ mod tests {
 
         let s = PoissonDisc::new(
             CustomDensity::new(
-                |x: &Point2| {
+                |x: &Point2<f32>| {
                     //let p = *x - Point2::new(0.5, 0.5);
                     //let r = p.magnitude();
 

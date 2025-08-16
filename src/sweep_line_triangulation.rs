@@ -24,7 +24,7 @@ struct Hull {
 const UNASSIGNED: usize = std::usize::MAX;
 use crate::coord::Point2;
 impl Hull {
-    fn new(num_points: usize, first_vertex_idx: usize, points: &[Point2]) -> Self {
+    fn new(num_points: usize, first_vertex_idx: usize, points: &[Point2<f32>]) -> Self {
         //let n = (num_points as f32).sqrt().ceil() as usize;
         let n = num_points;
         let num = 1;
@@ -57,7 +57,7 @@ impl Hull {
         cur_idx: usize,
         // The vertex idx to insert
         vertex_idx: usize,
-        points: &[Point2],
+        points: &[Point2<f32>],
     ) {
         // Get the location where to insert vertex idx
         let idx = if self.empty.is_empty() {
@@ -87,7 +87,7 @@ impl Hull {
         &mut self,
         // The vertex to remove from the hull
         cur_idx: usize,
-        points: &[Point2]
+        points: &[Point2<f32>]
     ) {
         let next_cur = self.next[cur_idx];
         let prev_cur = self.prev[cur_idx];
@@ -169,7 +169,7 @@ trait Vertex {
     /// a.y < b.y
     fn is_facing_edge(&self, a: &Self, b: &Self) -> bool;
 }
-impl Vertex for Point2 {
+impl Vertex for Point2<f32> {
     /// Check whether the vertex is in the circumcircle
     /// defined by the vertices a, b and c
     fn in_circumcircle(&self, a: &Self, b: &Self, c: &Self) -> bool {    
@@ -200,7 +200,6 @@ impl Vertex for Point2 {
     }
 }
 
-pub fn triangulate(vertices: &[na::Point2<f32>]) {}
 #[cfg(test)]
 mod tests {
     use crate::coord::Point2;
@@ -236,11 +235,10 @@ mod tests {
 
     #[test]
     fn test_triangulate_3_points() {
-        println!("aaaaa");
-        let vertices: &[na::Point2<f32>] = &[
-            na::Point2::new(0.76809347, 0.17880994),
-            na::Point2::new(0.14206064, 0.8896956),
-            na::Point2::new(0.007408619, 0.17449331),
+        let vertices: &[Point2<f32>] = &[
+            Point2::new(0.76809347, 0.17880994),
+            Point2::new(0.14206064, 0.8896956),
+            Point2::new(0.007408619, 0.17449331),
         ];
         /*for t in triangulate2(&vertices).into_iter() {
             println!("{:?}", t);
@@ -250,8 +248,7 @@ mod tests {
     use super::Hull;
     #[test]
     fn test_hull_iter() {
-        println!("aaaaa");
-        let vertices: &[Point2] = &[
+        let vertices: &[Point2<f32>] = &[
             Point2::new(0.76809347, 0.17880994),
             Point2::new(0.14206064, 0.8896956),
             Point2::new(0.007408619, 0.17449331),
@@ -264,7 +261,7 @@ mod tests {
         for e in hull.edges() {
             println!("{:?}", e);
         }
-        println!("sdfsfsf ");
+
         hull.remove(0, vertices);
 
         for e in hull.edges() {

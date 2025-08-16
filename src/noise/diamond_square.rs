@@ -97,9 +97,9 @@ use crate::coord::{Point2, Vertex};
 use crate::sampling::Space;
 
 use super::Noise;
-impl Noise<Point2> for DiamondSquare {
+impl Noise<Point2<f32>> for DiamondSquare {
     /// p given as coordinates between 0 and 1
-    fn noise(&self, p: &Point2) -> f32 {
+    fn noise(&self, p: &Point2<f32>) -> f32 {
         let x = ((SIZE as f32) * p.x) as usize;
         let y = ((SIZE as f32) * p.y) as usize;
         self.pixels[y][x]

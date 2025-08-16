@@ -7,14 +7,14 @@ use crate::sampling::TwoDim;
 
 pub(crate) struct NavMesh {
     pub triangulation: Vec<[usize; 3]>,
-    pub vertices: Vec<Point2>
+    pub vertices: Vec<Point2<f32>>
 }
 
 fn build_nav_mesh() -> NavMesh {
     let gradient = Gradient::new();
 
     let constant_sampler = ConstantStepUniform::new(0.02);
-    let s = TwoDim::new(|x: &Point2| {
+    let s = TwoDim::new(|x: &Point2<f32>| {
         let noise = gradient.fbm(&(x * 2.0), 0.6, 2.1)*0.707107 + 0.5; // in [0, 1]
         noise >= 0.45
     });

@@ -21,14 +21,14 @@ pub trait Space: Sized {
 
 pub struct TwoDim<F>
 where
-    F: Fn(&Point2) -> bool
+    F: Fn(&Point2<f32>) -> bool
 {
     constraint: F
 }
 
 impl<F> TwoDim<F>
 where
-    F: Fn(&Point2) -> bool
+    F: Fn(&Point2<f32>) -> bool
 {
     pub fn new(constraint: F) -> Self {
         Self {
@@ -39,8 +39,8 @@ where
 
 use std::ops::Fn;
 impl<F> Space for TwoDim<F>
-where F: Fn(&Point2) -> bool {
-    type Sample = Point2;
+where F: Fn(&Point2<f32>) -> bool {
+    type Sample = Point2<f32>;
 
     fn random_unconstrained() -> Self::Sample {
         Point2::new(

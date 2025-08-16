@@ -47,10 +47,6 @@ mod tests {
                 }
             )
         );
-        let vertices = vertices
-            .into_iter()
-            .map(|p| <na::Point2<f32> as From<Point2>>::from(p))
-            .collect::<Vec<_>>();
 
         /*let (w, h) = (512.0, 512.0);
         let mut img = RgbImage::new(w as u32, h as u32);

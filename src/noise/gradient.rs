@@ -6,7 +6,7 @@ impl Gradient {
         Self {}
     }
 
-    pub fn fbm(&self, p: &Point2, amplitude_factor: f32, freq_factor: f32) -> f32 {
+    pub fn fbm(&self, p: &Point2<f32>, amplitude_factor: f32, freq_factor: f32) -> f32 {
         let octave = 4;
         let mut amplitude = 1.0;
         let mut freq = 1.0;
@@ -25,9 +25,9 @@ use crate::coord::{Point2, Vertex};
 use crate::sampling::Space;
 
 use super::Noise;
-impl Noise<Point2> for Gradient {
+impl Noise<Point2<f32>> for Gradient {
     /// p given as coordinates between 0 and 1
-    fn noise(&self, p: &Point2) -> f32 {
+    fn noise(&self, p: &Point2<f32>) -> f32 {
         let x0 = (p.x as usize) as f32;
         let y0 = (p.y as usize) as f32;
 
@@ -46,7 +46,7 @@ impl Noise<Point2> for Gradient {
     }
 }
 
-fn random_f(p: &Point2) -> f32 {
+fn random_f(p: &Point2<f32>) -> f32 {
     let t = p.dot(&Point2::new(12.9898, 78.233));
     (t.sin() * 43758.5453123).fract()
 }
@@ -55,7 +55,7 @@ fn lerp(x: f32, a0: f32, a1: f32) -> f32 {
     (1.0 - x) * a0 + x * a1
 }
 
-fn random_vect(p: &Point2) -> Point2 {
+fn random_vect(p: &Point2<f32>) -> Point2<f32> {
     let theta = 2.0 * std::f32::consts::PI * random_f(p);
 
     Point2::new(theta.cos(), theta.sin())
@@ -108,7 +108,7 @@ mod tests {
         // Init a poisson disc sampling for the trees
         let s = PoissonDisc::new(
             CustomDensity::new(
-                |x: &Point2| {
+                |x: &Point2<f32>| {
                     let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
                     if noise < 0.45 {
                         0.01

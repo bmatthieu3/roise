@@ -23,7 +23,7 @@ pub struct Equal2DSizedGrid<F> {
 type VertexIdx = usize;
 
 impl<F> EqualSizedGrid for Equal2DSizedGrid<F>
-where F: Fn(&Point2) -> bool {
+where F: Fn(&Point2<f32>) -> bool {
     type Sp = TwoDim<F>;
 
     fn new(cell_size: f32) -> Self {
@@ -42,7 +42,7 @@ where F: Fn(&Point2) -> bool {
         }
     }
 
-    fn insert(&mut self, p: &Point2) -> VertexIdx {
+    fn insert(&mut self, p: &Point2<f32>) -> VertexIdx {
         let i = (p.x / self.cell_size) as usize;
         let j = (p.y / self.cell_size) as usize;
     
@@ -59,7 +59,7 @@ where F: Fn(&Point2) -> bool {
         idx_new_point
     }
 
-    fn neighbors(&self, p: &Point2, samples: &[Point2]) -> Vec<&Vec<VertexIdx>> {
+    fn neighbors(&self, p: &Point2<f32>, samples: &[Point2<f32>]) -> Vec<&Vec<VertexIdx>> {
         // Get the grid idx where the point is
         let idx_col = (p.x / self.cell_size) as i32;
         let idx_row = (p.y / self.cell_size) as i32;

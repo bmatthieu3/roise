@@ -16,12 +16,11 @@ mod sweep_line_triangulation;
 mod noise;
 pub use triangulation::triangulate2;
 mod nav_mesh;
+mod marching_square;
 
-extern crate nalgebra as na;
-use crate::coord::Point2;
-use na::Matrix2;
+pub use crate::coord::Point2;
 
-fn lies_on_positive_half_plane(p: &Point2, a: &Point2, b: &Point2) -> bool {
+fn lies_on_positive_half_plane(p: &Point2<f32>, a: &Point2<f32>, b: &Point2<f32>) -> bool {
     let ap = p - a;
     let ab = b - a;
     ab.det(&ap) >= 0.0
@@ -36,7 +35,7 @@ pub enum VertexIdx {
 }
 
 impl VertexIdx {
-    fn get_vertex<'a>(&self, vertices: &'a [Point2], super_vertices: &'a [Point2]) -> &'a Point2 {
+    fn get_vertex<'a>(&self, vertices: &'a [Point2<f32>], super_vertices: &'a [Point2<f32>]) -> &'a Point2<f32> {
         match self {
             VertexIdx::Super(idx) => &super_vertices[*idx],
             VertexIdx::Vertices(idx) => &vertices[*idx]
@@ -47,16 +46,12 @@ impl VertexIdx {
 use std::convert::TryInto;
 use std::collections::HashSet;
 use triangulation::DelaunayTriangulation;
-pub fn triangulate(vertices: &[na::Point2<f32>]) -> Box<[[usize; 3]]> {
+pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
     let super_vertices = &[
         Point2::new(-3.0, -1.0),
         Point2::new(3.0, -1.0),
         Point2::new(0.0, 3.0),
     ];
-
-    let vertices = unsafe {
-        std::slice::from_raw_parts(vertices.as_ptr() as *const Point2, vertices.len())
-    };
 
     let mut triangulation = Vec::new();
     triangulation.push(
@@ -133,10 +128,10 @@ pub fn triangulate(vertices: &[na::Point2<f32>]) -> Box<[[usize; 3]]> {
 
 trait Shape {
     /// Triangle vertices are given in counter-clockwise order
-    fn contains(&self, p: &Point2, vertices: &[Point2], super_vertices: &[Point2]) -> bool;
+    fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool;
 
     /// Triangle vertices are given in counter-clockwise order
-    fn in_circumcircle(&self, p: &Point2, vertices: &[Point2], super_vertices: &[Point2]) -> bool;
+    fn in_circumcircle(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool;
 
     /// Check whether a vertex belongs to the shape
     fn contains_vertex(&self, idx: VertexIdx) -> bool;
@@ -154,7 +149,7 @@ trait Shape {
 struct Triangle([VertexIdx; 3]);
 
 impl Triangle {
-    fn get_vertices<'a>(&self, vertices: &'a [Point2], super_vertices: &'a [Point2]) -> [&'a Point2; 3] {
+    fn get_vertices<'a>(&self, vertices: &'a [Point2<f32>], super_vertices: &'a [Point2<f32>]) -> [&'a Point2<f32>; 3] {
         [
             self.0[0].get_vertex(vertices, super_vertices),
             self.0[1].get_vertex(vertices, super_vertices),
@@ -179,7 +174,7 @@ impl Triangle {
 }
 
 impl Shape for Triangle {
-    fn contains(&self, p: &Point2, vertices: &[Point2], super_vertices: &[Point2]) -> bool {
+    fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool {
         let vertices = self.get_vertices(vertices, super_vertices);
 
         let pos_e1 = lies_on_positive_half_plane(p, &vertices[0], &vertices[1]);
@@ -198,7 +193,7 @@ impl Shape for Triangle {
     }
 
     /// Triangle vertices are given in counter-clockwise order
-    fn in_circumcircle(&self, p: &Point2, vertices: &[Point2], super_vertices: &[Point2]) -> bool {
+    fn in_circumcircle(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool {
         let vertices = self.get_vertices(vertices, super_vertices);
         
         // p is inside the triangle defined by (a, b, c) (given in counter-clockwise order) if:
@@ -353,10 +348,10 @@ mod tests {
     #[test]
     fn test_triangulation() {
         let vertices = [
-            na::Point2::new(0.25, 0.25),
-            na::Point2::new(0.75, 0.25),
-            na::Point2::new(0.25, 0.75),
-            na::Point2::new(0.75, 0.75),
+            Point2::new(0.25, 0.25),
+            Point2::new(0.75, 0.25),
+            Point2::new(0.25, 0.75),
+            Point2::new(0.75, 0.75),
         ];
 
         let triangulation = triangulate(&vertices);
@@ -367,11 +362,11 @@ mod tests {
     #[test]
     fn test_triangulation2() {
         let vertices = [
-            na::Point2::new(0.25, 0.25),
-            na::Point2::new(0.75, 0.25),
-            na::Point2::new(0.25, 0.75),
-            na::Point2::new(0.75, 0.75),
-            na::Point2::new(0.6, 0.3),
+            Point2::new(0.25, 0.25),
+            Point2::new(0.75, 0.25),
+            Point2::new(0.25, 0.75),
+            Point2::new(0.75, 0.75),
+            Point2::new(0.6, 0.3),
         ];
 
         let triangulation = triangulate(&vertices);
@@ -385,7 +380,7 @@ mod tests {
     fn test_triangulation_image() {
         let num_vertices = 1000;
         let vertices = (0..num_vertices)
-            .map(|_| na::Point2::new(rand::random::<f32>(), rand::random::<f32>()))
+            .map(|_| Point2::new(rand::random::<f32>(), rand::random::<f32>()))
             .collect::<Vec<_>>();
 
         let triangulation = triangulate(&vertices);

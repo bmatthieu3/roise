@@ -12,13 +12,13 @@ pub struct DelaunayTriangulation {
 
 /// Compute the intersection given by the two segments
 /// [v1; v2] and [v3; v4]
-pub fn intersection(v1: &Point2, v2: &Point2,  v3: &Point2, v4: &Point2) -> Option<Point2> {
+pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &Point2<f32>) -> Option<Point2<f32>> {
     let r = v2 - v1;
     let s = v4 - v3;
 
-    let denom = det(&r, &s);
+    let denom = (&r).det(&s);
     let v3_minus_v1 = v3 - v1;
-    let num = det(&v3_minus_v1, &r);
+    let num = (&v3_minus_v1).det(&r);
 
     // the segments are colinear
     if num == 0.0 && denom == 0.0 {
@@ -46,7 +46,7 @@ pub fn intersection(v1: &Point2, v2: &Point2,  v3: &Point2, v4: &Point2) -> Opti
         None
     } else if num != 0.0 {
         let u = num / denom;
-        let t = det(&v3_minus_v1, &s) / denom;
+        let t = (&v3_minus_v1).det(&s) / denom;
 
         // the segments are not parallel and intersecting
         if u >= 0.0 && u <= 1.0 && t >= 0.0 && t <= 1.0 {
@@ -60,15 +60,11 @@ pub fn intersection(v1: &Point2, v2: &Point2,  v3: &Point2, v4: &Point2) -> Opti
     }
 }
 
-fn det(u: &Point2, v: &Point2) -> f32 {
-    u.x * v.y - u.y * v.x
-}
-
-pub fn barycenter(u: &Point2, v: &Point2, w: &Point2) -> Point2 {
+pub fn barycenter(u: &Point2<f32>, v: &Point2<f32>, w: &Point2<f32>) -> Point2<f32> {
     (u + v + w)/3.0
 }
 
-fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2], super_vertices: &[Point2]) -> (VertexIdx, VertexIdx) {
+fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> (VertexIdx, VertexIdx) {
     // Get the ending vertex
     let up = u.get_vertex(vertices, super_vertices);
     // Get the triangle vertices
@@ -107,7 +103,7 @@ impl DelaunayTriangulation {
     /// u is the vertex to insert in the triangulation
     /// This methods walks in the triangulation to find
     /// one triangle whose circumcircle encloses u
-    pub fn get_triangle_whose_circle_encloses_u(&self, u: VertexIdx, vertices: &[Point2], super_vertices: &[Point2]) -> Option<(VertexIdx, VertexIdx, VertexIdx)> {
+    pub fn get_triangle_whose_circle_encloses_u(&self, u: VertexIdx, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> Option<(VertexIdx, VertexIdx, VertexIdx)> {
         if let Some(((mut v, mut w), x)) = self.vertices.iter().next() {
             let mut x = *x;
             // First triangle (vwx) is positively defined
@@ -139,14 +135,14 @@ impl DelaunayTriangulation {
     /// Insert the vertex u in the triangulation
     /// given a positively oriented triangle vwx whose
     /// circumcircle encloses u
-    pub fn insert_vertex(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2], super_vertices: &[Point2]) {
+    pub fn insert_vertex(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) {
         self.delete_triangle(v, w, x);
         self.dig_cavity(u, v, w, vertices, super_vertices);
         self.dig_cavity(u, w, x, vertices, super_vertices);
         self.dig_cavity(u, x, v, vertices, super_vertices);
     }
 
-    fn dig_cavity(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx, vertices: &[Point2], super_vertices: &[Point2]) {
+    fn dig_cavity(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) {
         if let Some(x) = self.adjacent(w, v) {
             if in_circumcircle(u, w, v, x, vertices, super_vertices) {
                 self.delete_triangle(w, v, x);
@@ -235,7 +231,7 @@ impl Iterator for TriangleIntoIterator {
 
 /// u is the vertex to test
 /// v, w, x defines a positively oriented triangle
-fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2], super_vertices: &[Point2]) -> bool {
+fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool {
     let u = u.get_vertex(vertices, super_vertices);
     let v = v.get_vertex(vertices, super_vertices);
     let w = w.get_vertex(vertices, super_vertices);
@@ -260,16 +256,13 @@ fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, verti
     a1*b2*c3 + a2*b3*c1 + b1*c2*a3 - c1*b2*a3 - c2*b3*a1 - b1*a2*c3 > 0.0
 }
 
-pub fn triangulate2(vertices: &[Point2]) -> DelaunayTriangulation {
+pub fn triangulate2(vertices: &[Point2<f32>]) -> DelaunayTriangulation {
     let super_vertices = &[
         Point2::new(-3.0, -1.0),
         Point2::new(3.0, -1.0),
         Point2::new(0.0, 3.0),
     ];
 
-    let vertices = unsafe {
-        std::slice::from_raw_parts(vertices.as_ptr() as *const Point2, vertices.len())
-    };
     let mut c = DelaunayTriangulation::new();
 
     for (idx_vertex, vertex) in vertices.iter().enumerate() {
@@ -286,16 +279,13 @@ pub fn triangulate2(vertices: &[Point2]) -> DelaunayTriangulation {
     c
 }
 
-pub fn create_nav_mesh(vertices: &[Point2]) -> DelaunayTriangulation {
+pub fn create_nav_mesh(vertices: &[Point2<f32>]) -> DelaunayTriangulation {
     let super_vertices = &[
         Point2::new(-3.0, -1.0),
         Point2::new(3.0, -1.0),
         Point2::new(0.0, 3.0),
     ];
 
-    let vertices = unsafe {
-        std::slice::from_raw_parts(vertices.as_ptr() as *const Point2, vertices.len())
-    };
     let mut c = DelaunayTriangulation::new();
 
     for (idx_vertex, vertex) in vertices.iter().enumerate() {
@@ -334,7 +324,7 @@ mod tests {
     #[test]
     fn test_triangulate_3_points() {
         println!("aaaaa");
-        let vertices: &[Point2] = &[
+        let vertices: &[Point2<f32>] = &[
             Point2::new(0.76809347, 0.17880994),
             Point2::new(0.14206064, 0.8896956),
             Point2::new(0.007408619, 0.17449331),
