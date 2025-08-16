@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use crate::coord::Point2;
 
+// See this article for the figure giving the 16 possible cases
+// https://nils-olovsson.se/articles/marching_squares/
 const MARCHING_SQUARE_TABLE: &[&[(Point2<i8>, Point2<i8>)]] = &[
     // TL TR BR BL
     // 0  0  0  0
@@ -44,7 +46,7 @@ const MARCHING_SQUARE_TABLE: &[&[(Point2<i8>, Point2<i8>)]] = &[
     &[],
 ];
 
-fn extract_edges<F>(num_sampling_vertices: usize, inside_area: F) -> HashMap<(u16, u16), (u16, u16)>
+fn extract_isocontours_from_heightmap<F>(num_sampling_vertices: usize, inside_area: F) -> Vec<Polygon>
 where
     F: Fn(Point2<f32>) -> bool,
 {
@@ -78,20 +80,50 @@ where
         }
     }
 
-    
-    /*while !g.is_empty() {
-        // Get one 
-        if let Some((&key, &value)) = g.iter().next() {
-            println!("Random pick: {} → {}", key, value);
-    
-            // Remove it
-            g.remove(key);
+    let mut contours = vec![];
+    while !edges.is_empty() {
+        let mut c = vec![];
+        // Extract one arbitrary edge to start the contour
+        if let Some(mut start) = edges.keys().next().cloned() {
+            let p1 = Point2::new(
+                (start.0 as f32) / ((num_sampling_vertices * 2) as f32),
+                (start.1 as f32) / ((num_sampling_vertices * 2) as f32),
+            );
+            c.push(p1);
+
+            while let Some(next) = edges.remove(&start) {
+                let p2 = Point2::new(
+                    (next.0 as f32) / ((num_sampling_vertices * 2) as f32),
+                    (next.1 as f32) / ((num_sampling_vertices * 2) as f32),
+                );
+                c.push(p2);
+
+                start = next;
+            }
+
+            contours.push(Polygon {vertices: c});
+        }
+    }
+
+    contours
+}
+
+struct Polygon {
+    vertices: Vec<Point2<f32>>
+}
+
+impl Polygon {
+    fn signed_area(&self) -> f32 {
+        let mut i = self.vertices.len() - 1;
+        let mut area = 0.0;
+        for j in 0..self.vertices.len() {
+            area += self.vertices[i].det(&self.vertices[j]);
+
+            i = j;
         }
 
-        let a = g.remove(&());
-    }*/
-
-    edges
+        area * 0.5
+    }
 }
 
 #[cfg(test)]
@@ -101,50 +133,75 @@ mod tests {
     use imageproc::drawing::draw_line_segment_mut;
     use image::RgbImage;
 
-    use crate::marching_square::extract_edges;
+    use crate::marching_square::extract_isocontours_from_heightmap;
+    use crate::marching_square::Polygon;
     use crate::nav_mesh::NavMesh;
     use crate::Point2;
     use crate::noise::Gradient;
     #[test]
     fn test_contour_extract() {
         let gradient = Gradient::new();
-        let mut edges = extract_edges(200, |x: Point2<f32>| {
+        let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
             let noise = gradient.fbm(&(x * 2.0), 0.6, 5.1)*0.707107 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
-        let mut contours = vec![];
-        while !edges.is_empty() {
-            let mut c = vec![];
-            // Extract one arbitrary edge to start the contour
-            if let Some(mut start) = edges.keys().next().cloned() {
-                c.push(start);
-
-                while let Some(next) = edges.remove(&start) {
-                    c.push(next);
-
-                    start = next;
-                }
-
-                contours.push(c);
-            }
-        }
-
-
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
-        for c in contours {
-            let color = Rgb([(c[0].0 & 0xff) as u8, (c[0].1 & 0xff) as u8, 255u8]);
-            for (p1, p2) in c.iter().zip(c.iter().skip(1)) {
+        for Polygon { vertices } in polygons {
+            let color = Rgb([(rand::random::<f32>() * 255.0) as u8, (rand::random::<f32>() * 255.0) as u8, 255u8]);
+            for (p1, p2) in vertices.iter().zip(vertices.iter().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
-                    ((((p1.0 as f32) / 400.0) * w).round(), (((p1.1 as f32) / 400.0) * h).round()),              // start point
-                    ((((p2.0 as f32) / 400.0) * w).round(), (((p2.1 as f32) / 400.0) * h).round()),            // end point
+                    (((p1.x as f32) * w).round(), ((p1.y as f32) * h).round()),              // start point
+                    (((p2.x as f32) * w).round(), ((p2.y as f32) * h).round()),            // end point
                     color, // RGB colors
                 );
             }
         }
 
         img.save("countours.png").unwrap();
+    }
+
+    use crate::triangulate2;
+    use std::collections::HashSet;
+    #[test]
+    fn test_triangulate_contours() {
+        let gradient = Gradient::new();
+        let polygons = extract_isocontours_from_heightmap(128, |x: Point2<f32>| {
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 5.1)*0.707107 + 0.5; // in [0, 1]
+            noise >= 0.45
+        });
+
+        let vertices = polygons
+            .into_iter()
+            .flat_map(|Polygon { vertices }| vertices)
+            .map(|p| ((p.x * 1e6_f32) as u64, (p.y * 1e6_f32) as u64))
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .map(|(x, y)| Point2::new(x as f32 / 1e6, y as f32 / 1e6))
+            .collect::<Vec<_>>();
+
+        let triangulation = triangulate2(&vertices);
+
+        //panic!("jjj");
+
+
+        let (w, h) = (1024.0, 1024.0);
+        let mut img = RgbImage::new(w as u32, h as u32);
+        for t in triangulation {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
+                //let v1 = idx.get_vertex(super_triangle)
+
+                draw_line_segment_mut(
+                    &mut img,
+                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
+                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                );
+            }
+        }
+
+        img.save("coutours_triangulated.png").unwrap();
     }
 }
