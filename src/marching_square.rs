@@ -86,16 +86,16 @@ where
         // Extract one arbitrary edge to start the contour
         if let Some(mut start) = edges.keys().next().cloned() {
             let p1 = Point2::new(
-                (start.0 as f32) / ((num_sampling_vertices * 2) as f32),
-                (start.1 as f32) / ((num_sampling_vertices * 2) as f32),
-            );
+                (start.0 as f32),
+                (start.1 as f32),
+            ) / ((num_sampling_vertices * 2) as f32);
             c.push(p1);
 
             while let Some(next) = edges.remove(&start) {
                 let p2 = Point2::new(
-                    (next.0 as f32) / ((num_sampling_vertices * 2) as f32),
-                    (next.1 as f32) / ((num_sampling_vertices * 2) as f32),
-                );
+                    (next.0 as f32),
+                    (next.1 as f32),
+                ) / ((num_sampling_vertices * 2) as f32);
                 c.push(p2);
 
                 start = next;
@@ -123,6 +123,29 @@ impl Polygon {
         }
 
         area * 0.5
+    }
+
+    // Does not work for self intersecting polygons
+    fn is_inside(&self, p: &Point2<f32>) -> bool {
+        let mut i = self.vertices.len() - 1;
+        let mut inside = false;
+        for j in 0..self.vertices.len() {
+            let Point2 { x: x1, y: y1 } = self.vertices[i];
+            let Point2 { x: x2, y: y2 } = self.vertices[j];
+
+            // Check if the edge crossed the line y = p.y
+            if y1 <= p.y != y2 <= p.y {
+                let xi = x2 + (p.y - y2) * (x2 - x1) / (y2 - y1);
+
+                if xi <= p.x {
+                    inside = !inside;
+                }
+            }
+
+            i = j;
+        }
+
+        inside
     }
 }
 
@@ -203,5 +226,15 @@ mod tests {
         }
 
         img.save("coutours_triangulated.png").unwrap();
+    }
+
+    #[test]
+    fn point_inside_polygon() {
+        let polygon = Polygon {
+            vertices: vec![
+                Point2::new()
+                    #[test]
+            ]
+        };
     }
 }
