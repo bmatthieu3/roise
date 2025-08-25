@@ -140,6 +140,7 @@ mod tests {
     use image::{Rgb, RgbImage};
     use imageproc::drawing::draw_cross_mut;
     use imageproc::drawing::draw_line_segment_mut;
+    use crate::DelaunayTriangulation;
     #[test]
     fn test_poisson_disc() {
         let amplitude = 0.01;
@@ -193,7 +194,7 @@ mod tests {
         img.save("poisson.png").unwrap();
         */
 
-        let triangulation = crate::triangulate2(vertices.as_slice());
+        let triangulation = DelaunayTriangulation::from_vertices(vertices.as_slice());
         let (w, h) = (512.0, 512.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for t in triangulation.into_iter() {

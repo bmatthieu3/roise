@@ -11,16 +11,16 @@ pub(crate) struct NavMesh {
 }
 
 fn build_nav_mesh() -> NavMesh {
+    let constant_sampler = ConstantStepUniform::new(0.02);
     let gradient = Gradient::new();
 
-    let constant_sampler = ConstantStepUniform::new(0.02);
     let s = TwoDim::new(|x: &Point2<f32>| {
         let noise = gradient.fbm(&(x * 2.0), 0.6, 2.1)*0.707107 + 0.5; // in [0, 1]
         noise >= 0.45
     });
 
     let vertices = constant_sampler.sample(&s);
-    let mut triangulation = super::triangulation::triangulate2(&vertices);
+    let mut triangulation = super::triangulation::DelaunayTriangulation::from_vertices(&vertices);
 
     let triangulation = triangulation.into_iter()
         .filter(|[a, b, c]| {

@@ -46,73 +46,115 @@ const MARCHING_SQUARE_TABLE: &[&[(Point2<i8>, Point2<i8>)]] = &[
     &[],
 ];
 
-fn extract_isocontours_from_heightmap<F>(num_sampling_vertices: usize, inside_area: F) -> Vec<Polygon>
+fn extract_isocontours_from_heightmap<F>(num_sampling_vertices: i32, inside_area: F) -> Vec<ClosedPolyline>
 where
     F: Fn(Point2<f32>) -> bool,
 {
     let square_size = 1.0 / (num_sampling_vertices as f32 - 1.0);
 
-    let mut edges: HashMap<(u16, u16), (u16, u16)> = HashMap::new();
-    for i in 0..(num_sampling_vertices - 1) {
+    let mut edges: HashMap<(i32, i32), (i32, i32, usize)> = HashMap::new();
+    for i in (-1)..(num_sampling_vertices+1) {
         let y = (i as f32) * square_size;
-        for j in 0..(num_sampling_vertices - 1) {
+        for j in (-1)..(num_sampling_vertices+1) {
             let x = (j as f32) * square_size;
 
-            let tl_in = inside_area(Point2::new(x, y));
-            let tr_in = inside_area(Point2::new(x + square_size, y));
-            let bl_in = inside_area(Point2::new(x, y + square_size));
-            let br_in = inside_area(Point2::new(x + square_size, y + square_size));
+            let tl_in = if i == -1 || j == -1 {
+                false
+            } else {
+                inside_area(Point2::new(x, y))
+            };
+            let tr_in = if i == -1 || j == num_sampling_vertices {
+                false
+            } else {
+                inside_area(Point2::new(x + square_size, y))
+            };
+            let bl_in = if i == num_sampling_vertices || j == -1 {
+                false
+            } else {
+                inside_area(Point2::new(x, y + square_size))
+            };
+            let br_in = if i == num_sampling_vertices || j == num_sampling_vertices {
+                false
+            } else {
+                inside_area(Point2::new(x + square_size, y + square_size))
+            };
 
-            let code = ((tl_in as usize) << 3) |((tr_in as usize) << 2) | ((br_in as usize) << 1) | (bl_in as usize);
+            let code = ((tl_in as usize) << 3) | ((tr_in as usize) << 2) | ((br_in as usize) << 1) | (bl_in as usize);
 
             let i_half_cell = i << 1;
             let j_half_cell = j << 1;
 
             for (p1, p2) in MARCHING_SQUARE_TABLE[code] {
-                let p1_x = ((j_half_cell as i32) + (p1.x as i32) + 1) as u16;
-                let p1_y = ((i_half_cell as i32) + (p1.y as i32) + 1) as u16;
+                let p1_x = (j_half_cell as i32) + (p1.x as i32) + 1;
+                let p1_y = (i_half_cell as i32) + (p1.y as i32) + 1;
 
-                let p2_x = ((j_half_cell as i32) + (p2.x as i32) + 1) as u16;
-                let p2_y = ((i_half_cell as i32) + (p2.y as i32) + 1) as u16;
+                let p2_x = (j_half_cell as i32) + (p2.x as i32) + 1;
+                let p2_y = (i_half_cell as i32) + (p2.y as i32) + 1;
 
-                edges.insert((p1_x, p1_y), (p2_x, p2_y));
+                edges.insert((p1_x, p1_y), (p2_x, p2_y, code));
             }
         }
     }
 
     let mut contours = vec![];
+    let mut idx: usize = 0;
+    let mut outer_contour = 0;
+    let mut max_area = 0.0;
+
     while !edges.is_empty() {
-        let mut c = vec![];
+        let mut vertices = vec![];
         // Extract one arbitrary edge to start the contour
         if let Some(mut start) = edges.keys().next().cloned() {
             let p1 = Point2::new(
-                (start.0 as f32),
-                (start.1 as f32),
-            ) / ((num_sampling_vertices * 2) as f32);
-            c.push(p1);
+                ((start.0) as f32),
+                ((start.1) as f32),
+            ) / (((num_sampling_vertices) * 2) as f32);
+            vertices.push(p1);
 
-            while let Some(next) = edges.remove(&start) {
-                let p2 = Point2::new(
-                    (next.0 as f32),
-                    (next.1 as f32),
-                ) / ((num_sampling_vertices * 2) as f32);
-                c.push(p2);
+            while let Some((cx, cy, ccode)) = edges.remove(&start) {
+                let cur_vertex = Point2::new(
+                    (cx as f32),
+                    (cy as f32),
+                ) / (((num_sampling_vertices) * 2) as f32);
 
-                start = next;
+                // peek the next one to see if its code matches.
+                // If so we should we do not need to add the cur vertex to the contour
+                match edges.get(&(cx, cy)) {
+                    Some((_, _, ncode)) if *ncode == ccode => (),
+                    _ => vertices.push(cur_vertex)
+                }
+                start = (cx, cy);
             }
 
-            contours.push(Polygon {vertices: c});
+            assert_eq!(vertices[0], vertices[vertices.len() - 1]);
+
+            let polygon = ClosedPolyline {vertices};
+
+            let area = polygon.signed_area().abs();
+            // find the outer contour
+            if area > max_area {
+                max_area = dbg!(area);
+                outer_contour = dbg!(idx);
+            }
+
+            contours.push(polygon);
+
+            idx += 1;
         }
     }
+
+    // put the outer contour at the first position
+    contours.swap(0, dbg!(outer_contour));
 
     contours
 }
 
-struct Polygon {
-    vertices: Vec<Point2<f32>>
+#[derive(Clone)]
+pub struct ClosedPolyline {
+    pub vertices: Vec<Point2<f32>>
 }
 
-impl Polygon {
+impl ClosedPolyline {
     fn signed_area(&self) -> f32 {
         let mut i = self.vertices.len() - 1;
         let mut area = 0.0;
@@ -126,7 +168,7 @@ impl Polygon {
     }
 
     // Does not work for self intersecting polygons
-    fn is_inside(&self, p: &Point2<f32>) -> bool {
+    pub fn contains(&self, p: &Point2<f32>) -> bool {
         let mut i = self.vertices.len() - 1;
         let mut inside = false;
         for j in 0..self.vertices.len() {
@@ -134,10 +176,10 @@ impl Polygon {
             let Point2 { x: x2, y: y2 } = self.vertices[j];
 
             // Check if the edge crossed the line y = p.y
-            if y1 <= p.y != y2 <= p.y {
+            if (y1 <= p.y) != (y2 <= p.y) {
                 let xi = x2 + (p.y - y2) * (x2 - x1) / (y2 - y1);
 
-                if xi <= p.x {
+                if xi < p.x {
                     inside = !inside;
                 }
             }
@@ -157,21 +199,22 @@ mod tests {
     use image::RgbImage;
 
     use crate::marching_square::extract_isocontours_from_heightmap;
-    use crate::marching_square::Polygon;
+    use crate::marching_square::ClosedPolyline;
     use crate::nav_mesh::NavMesh;
+    use crate::triangulation::DelaunayTriangulation;
     use crate::Point2;
     use crate::noise::Gradient;
     #[test]
     fn test_contour_extract() {
         let gradient = Gradient::new();
         let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 5.1)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
-        for Polygon { vertices } in polygons {
+        for ClosedPolyline { vertices } in polygons {
             let color = Rgb([(rand::random::<f32>() * 255.0) as u8, (rand::random::<f32>() * 255.0) as u8, 255u8]);
             for (p1, p2) in vertices.iter().zip(vertices.iter().skip(1)) {
                 draw_line_segment_mut(
@@ -181,41 +224,43 @@ mod tests {
                     color, // RGB colors
                 );
             }
+
+            for p in vertices.iter() {
+                draw_cross_mut(
+                    &mut img,
+                    Rgb([200u8, 203u8, 133u8]),
+                    (p.x * 1024.0) as i32,              // start point
+                    (p.y * 1024.0) as i32,            // end point
+                );
+            }
         }
 
-        img.save("countours.png").unwrap();
+        img.save("contours.png").unwrap();
     }
 
-    use crate::triangulate2;
     use std::collections::HashSet;
     #[test]
     fn test_triangulate_contours() {
         let gradient = Gradient::new();
-        let polygons = extract_isocontours_from_heightmap(128, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 5.1)*0.707107 + 0.5; // in [0, 1]
+        let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
         let vertices = polygons
             .into_iter()
-            .flat_map(|Polygon { vertices }| vertices)
-            .map(|p| ((p.x * 1e6_f32) as u64, (p.y * 1e6_f32) as u64))
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .map(|(x, y)| Point2::new(x as f32 / 1e6, y as f32 / 1e6))
+            .flat_map(|ClosedPolyline { mut vertices }| {
+                let _ = vertices.pop();
+                vertices
+            })
             .collect::<Vec<_>>();
 
-        let triangulation = triangulate2(&vertices);
-
-        //panic!("jjj");
-
+        let triangulation = DelaunayTriangulation::from_vertices(&vertices);
 
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for t in triangulation {
             for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
-                //let v1 = idx.get_vertex(super_triangle)
-
                 draw_line_segment_mut(
                     &mut img,
                     (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
@@ -228,13 +273,58 @@ mod tests {
         img.save("coutours_triangulated.png").unwrap();
     }
 
+#[test]
+    fn test_triangulate_cdt_from_contours() {
+        let gradient = Gradient::new();
+        let contours = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
+            noise >= 0.45
+        });
+
+        dbg!(contours[0].vertices.len());
+
+        let vertices = contours
+            .iter()
+            .cloned()
+            .flat_map(|ClosedPolyline { mut vertices }| {
+                let _ = vertices.pop();
+                vertices
+            })
+            .collect::<Vec<_>>();
+
+        let triangulation = DelaunayTriangulation::from_contours(&contours);
+
+        let (w, h) = (1024.0, 1024.0);
+        let mut img = RgbImage::new(w as u32, h as u32);
+        for t in triangulation {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
+                draw_line_segment_mut(
+                    &mut img,
+                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
+                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                );
+            }
+        }
+
+        img.save("coutours_triangulated2.png").unwrap();
+    }
+
     #[test]
     fn point_inside_polygon() {
-        let polygon = Polygon {
+        let polygon = ClosedPolyline {
             vertices: vec![
-                Point2::new()
-                    #[test]
+                Point2::new(0.0, 0.0),
+                Point2::new(3.0, 0.0),
+                Point2::new(3.0, 3.0),
+                Point2::new(1.5, 1.5),
+                Point2::new(0.0, 3.0),
+                Point2::new(0.0, 0.0),
             ]
         };
+
+        assert!(polygon.contains(&Point2::new(1.5, 1.0)));
+        assert!(!polygon.contains(&Point2::new(-1.5, 1.0)));
+        assert!(polygon.contains(&Point2::new(1.0, 1.0)));
     }
 }

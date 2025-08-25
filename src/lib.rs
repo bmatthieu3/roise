@@ -14,7 +14,6 @@ mod coord;
 mod triangulation;
 mod sweep_line_triangulation;
 mod noise;
-pub use triangulation::triangulate2;
 mod nav_mesh;
 mod marching_square;
 
@@ -27,18 +26,37 @@ fn lies_on_positive_half_plane(p: &Point2<f32>, a: &Point2<f32>, b: &Point2<f32>
 }
 
 #[derive(Clone, Copy)]
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Ord, Eq, Hash)]
 #[derive(Debug)]
 pub enum VertexIdx {
     Super(usize),
     Vertices(usize)
 }
 
+
+impl PartialOrd for VertexIdx {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (VertexIdx::Super(i), VertexIdx::Super(j)) => i.partial_cmp(j),
+            (VertexIdx::Super(_), VertexIdx::Vertices(_)) => Some(std::cmp::Ordering::Greater),
+            (VertexIdx::Vertices(_), VertexIdx::Super(_)) => Some(std::cmp::Ordering::Less),
+            (VertexIdx::Vertices(i), VertexIdx::Vertices(j)) => i.partial_cmp(j),
+        }
+    }
+}
+
 impl VertexIdx {
-    fn get_vertex<'a>(&self, vertices: &'a [Point2<f32>], super_vertices: &'a [Point2<f32>]) -> &'a Point2<f32> {
+    fn get_vertex<'a>(&self, vertices: &'a [Point2<f32>]) -> &'a Point2<f32> {
         match self {
-            VertexIdx::Super(idx) => &super_vertices[*idx],
+            VertexIdx::Super(idx) => &crate::triangulation::SUPER_VERTICES[*idx],
             VertexIdx::Vertices(idx) => &vertices[*idx]
+        }
+    }
+
+    fn id(&self) -> usize {
+        match self {
+            VertexIdx::Super(idx) => *idx,
+            VertexIdx::Vertices(idx) => 3 + *idx
         }
     }
 }
@@ -47,12 +65,6 @@ use std::convert::TryInto;
 use std::collections::HashSet;
 use triangulation::DelaunayTriangulation;
 pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
-    let super_vertices = &[
-        Point2::new(-3.0, -1.0),
-        Point2::new(3.0, -1.0),
-        Point2::new(0.0, 3.0),
-    ];
-
     let mut triangulation = Vec::new();
     triangulation.push(
         Triangle([VertexIdx::Super(0), VertexIdx::Super(1), VertexIdx::Super(2)])
@@ -65,7 +77,7 @@ pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
         bad_tri.clear();
 
         triangulation.retain(|t| {
-            if t.in_circumcircle(p, vertices, super_vertices) {
+            if t.in_circumcircle(p, vertices) {
                 bad_tri.push(t.clone());
                 false
             } else {
@@ -77,8 +89,8 @@ pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
 
         // Add triangles
         for e in poly_edges.into_iter() {
-            let a = e.start().get_vertex(vertices, super_vertices);
-            let b = e.end().get_vertex(vertices, super_vertices);
+            let a = e.start().get_vertex(vertices);
+            let b = e.end().get_vertex(vertices);
 
             let ab = b - a;
             let ap = p - a;
@@ -128,10 +140,10 @@ pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
 
 trait Shape {
     /// Triangle vertices are given in counter-clockwise order
-    fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool;
+    fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> bool;
 
     /// Triangle vertices are given in counter-clockwise order
-    fn in_circumcircle(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool;
+    fn in_circumcircle(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> bool;
 
     /// Check whether a vertex belongs to the shape
     fn contains_vertex(&self, idx: VertexIdx) -> bool;
@@ -149,11 +161,11 @@ trait Shape {
 struct Triangle([VertexIdx; 3]);
 
 impl Triangle {
-    fn get_vertices<'a>(&self, vertices: &'a [Point2<f32>], super_vertices: &'a [Point2<f32>]) -> [&'a Point2<f32>; 3] {
+    fn get_vertices<'a>(&self, vertices: &'a [Point2<f32>]) -> [&'a Point2<f32>; 3] {
         [
-            self.0[0].get_vertex(vertices, super_vertices),
-            self.0[1].get_vertex(vertices, super_vertices),
-            self.0[2].get_vertex(vertices, super_vertices),
+            self.0[0].get_vertex(vertices),
+            self.0[1].get_vertex(vertices),
+            self.0[2].get_vertex(vertices),
         ]
     }
 
@@ -174,8 +186,8 @@ impl Triangle {
 }
 
 impl Shape for Triangle {
-    fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool {
-        let vertices = self.get_vertices(vertices, super_vertices);
+    fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> bool {
+        let vertices = self.get_vertices(vertices);
 
         let pos_e1 = lies_on_positive_half_plane(p, &vertices[0], &vertices[1]);
         let pos_e2 = lies_on_positive_half_plane(p, &vertices[1], &vertices[2]);
@@ -193,8 +205,8 @@ impl Shape for Triangle {
     }
 
     /// Triangle vertices are given in counter-clockwise order
-    fn in_circumcircle(&self, p: &Point2<f32>, vertices: &[Point2<f32>], super_vertices: &[Point2<f32>]) -> bool {
-        let vertices = self.get_vertices(vertices, super_vertices);
+    fn in_circumcircle(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> bool {
+        let vertices = self.get_vertices(vertices);
         
         // p is inside the triangle defined by (a, b, c) (given in counter-clockwise order) if:
         //       | ax-px, ay-py, (ax-px)² + (ay-py)² |
@@ -339,10 +351,10 @@ mod tests {
         ];
         let t = Triangle([VertexIdx::Vertices(0), VertexIdx::Vertices(1), VertexIdx::Vertices(2)]);
 
-        assert!(!t.contains(&Point2::new(10.0, -1.0), &vertices, &vertices));
-        assert!(!t.contains(&Point2::new(-1e-5, 0.5), &vertices, &vertices));
-        assert!(t.contains(&Point2::new(0.5, 0.5), &vertices, &vertices));
-        assert!(t.contains(&Point2::new(0.25, 0.25), &vertices, &vertices));
+        assert!(!t.contains(&Point2::new(10.0, -1.0), &vertices));
+        assert!(!t.contains(&Point2::new(-1e-5, 0.5), &vertices));
+        assert!(t.contains(&Point2::new(0.5, 0.5), &vertices));
+        assert!(t.contains(&Point2::new(0.25, 0.25), &vertices));
     }
 
     #[test]

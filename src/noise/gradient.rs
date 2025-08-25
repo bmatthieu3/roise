@@ -68,9 +68,10 @@ mod tests {
         noise::Noise,
         coord::Point2
     };
+    use crate::DelaunayTriangulation;
+
     use image::{ImageBuffer, Luma, Rgb};
     use crate::sampling::{Sampler, PoissonDisc, TwoDim, CustomDensity};
-    use crate::triangulation::triangulate2;
     use image::RgbImage;
     use imageproc::drawing::draw_cross_mut;
     use imageproc::drawing::draw_line_segment_mut;
@@ -138,7 +139,7 @@ mod tests {
         }
         img.save("sampling_trees.png").unwrap();*/
 
-        let triangulation = triangulate2(&vertices);
+        let triangulation = DelaunayTriangulation::from_vertices(&vertices);
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for t in triangulation {
