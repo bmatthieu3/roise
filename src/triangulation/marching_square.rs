@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use crate::coord::Point2;
+use crate::geometry::coord::Point2;
+use crate::geometry::closed_polyline::ClosedPolyline;
 
 // See this article for the figure giving the 16 possible cases
 // https://nils-olovsson.se/articles/marching_squares/
@@ -133,8 +134,8 @@ where
             let area = polygon.signed_area().abs();
             // find the outer contour
             if area > max_area {
-                max_area = dbg!(area);
-                outer_contour = dbg!(idx);
+                max_area = area;
+                outer_contour = idx;
             }
 
             contours.push(polygon);
@@ -144,51 +145,24 @@ where
     }
 
     // put the outer contour at the first position
-    contours.swap(0, dbg!(outer_contour));
+    contours.swap(0, outer_contour);
+
+    // simplify the contours using douglas-peucker rec algo
+    let contours = contours.into_iter()
+        .filter_map(|mut contour| {
+            let last = contour.vertices.pop().unwrap();
+            contour.vertices = crate::geometry::closed_polyline::douglas_peucker(&contour.vertices[0..(contour.vertices.len() - 1)], square_size * 0.5);
+            contour.vertices.push(last);
+
+            if contour.vertices.len() == 3 {
+                None
+            } else {
+                Some(contour)
+            }
+        })
+        .collect();
 
     contours
-}
-
-#[derive(Clone)]
-pub struct ClosedPolyline {
-    pub vertices: Vec<Point2<f32>>
-}
-
-impl ClosedPolyline {
-    fn signed_area(&self) -> f32 {
-        let mut i = self.vertices.len() - 1;
-        let mut area = 0.0;
-        for j in 0..self.vertices.len() {
-            area += self.vertices[i].det(&self.vertices[j]);
-
-            i = j;
-        }
-
-        area * 0.5
-    }
-
-    // Does not work for self intersecting polygons
-    pub fn contains(&self, p: &Point2<f32>) -> bool {
-        let mut i = self.vertices.len() - 1;
-        let mut inside = false;
-        for j in 0..self.vertices.len() {
-            let Point2 { x: x1, y: y1 } = self.vertices[i];
-            let Point2 { x: x2, y: y2 } = self.vertices[j];
-
-            // Check if the edge crossed the line y = p.y
-            if (y1 <= p.y) != (y2 <= p.y) {
-                let xi = x2 + (p.y - y2) * (x2 - x1) / (y2 - y1);
-
-                if xi < p.x {
-                    inside = !inside;
-                }
-            }
-
-            i = j;
-        }
-
-        inside
-    }
 }
 
 #[cfg(test)]
@@ -198,11 +172,11 @@ mod tests {
     use imageproc::drawing::draw_line_segment_mut;
     use image::RgbImage;
 
-    use crate::marching_square::extract_isocontours_from_heightmap;
-    use crate::marching_square::ClosedPolyline;
+    use crate::triangulation::marching_square::extract_isocontours_from_heightmap;
+    use crate::geometry::closed_polyline::ClosedPolyline;
     use crate::nav_mesh::NavMesh;
     use crate::triangulation::DelaunayTriangulation;
-    use crate::Point2;
+    use crate::geometry::coord::Point2;
     use crate::noise::Gradient;
     #[test]
     fn test_contour_extract() {
@@ -277,7 +251,7 @@ mod tests {
     fn test_triangulate_cdt_from_contours() {
         let gradient = Gradient::new();
         let contours = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 

@@ -93,7 +93,7 @@ impl DiamondSquare {
     }
 }
 
-use crate::coord::{Point2, Vertex};
+use crate::geometry::coord::{Point2, Vertex};
 use crate::sampling::Space;
 
 use super::Noise;

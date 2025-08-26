@@ -1,5 +1,10 @@
 use super::{VertexIdx, Edge};
-use crate::coord::Point2;
+use crate::geometry::coord::Point2;
+
+mod marching_square;
+mod sweep_line_triangulation;
+
+use crate::geometry::closed_polyline::ClosedPolyline;
 
 type TriangleIdx = usize;
 
@@ -111,12 +116,12 @@ fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertic
     let xp = x.get_vertex(vertices);
     let b = barycenter(vp, wp, xp);
 
-    if let Some(_) = intersection(&b, up, vp, wp) {
+    if let Some(_) = intersection(up, &b, vp, wp) {
         (v, w)
-    } else if let Some(_) = intersection(&b, up, wp, xp) {
+    } else if let Some(_) = intersection(up,  &b, wp, xp) {
         (w, x)
     } else {
-        //assert!(intersection(&b, dbg!(up), dbg!(xp), dbg!(vp)).is_some());
+        //assert!(intersection(&b, up, xp, vp).is_some());
         // If it does not intersect (v, w) nor (w, x)
         // it has to intersect (x, v)
         (x, v)
@@ -157,9 +162,6 @@ fn is_ear(prev: VertexIdx, curr: VertexIdx, next: VertexIdx, polygon: &[VertexId
         
     true
 }
-    
-
- use crate::marching_square::ClosedPolyline;
 
 pub(crate) const SUPER_VERTICES: &[Point2<f32>] = &[
     Point2::new(-3.0, -1.0),
@@ -233,13 +235,12 @@ impl DelaunayTriangulation {
 
             if is_in_hole {
                 t_delete.push((*u, *v, *w));
-            }    
+            }
         }
 
         for (u, v, w) in t_delete {
             triangulation.delete_triangle(u, v, w);
         }
-
 
         triangulation
     }
@@ -433,7 +434,7 @@ impl DelaunayTriangulation {
             
             dbg!(&caveat_polyline, u, v);
 
-            /*for t in triangles_intersecting {
+            for t in triangles_intersecting {
                 self.delete_triangle(t.0, t.1, self.adjacent(t.0, t.1).unwrap());
             }
 
@@ -451,8 +452,6 @@ impl DelaunayTriangulation {
 
                 curr = *next;
             }
-
-            dbg!(&pa);
 
             let mut pb = vec![u, v];
             let mut curr = v;
@@ -474,7 +473,7 @@ impl DelaunayTriangulation {
             let tb = self.triangulate_polygon(pb, vertices);
             for (a, b, c) in tb {
                 self.add_triangle(a, b, c);
-            }*/
+            }
         }
     }
 
@@ -594,7 +593,7 @@ fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, verti
 #[cfg(test)]
 mod tests {
     use super::DelaunayTriangulation;
-    use crate::coord::Point2;
+    use crate::geometry::coord::Point2;
     use crate::VertexIdx;
 
     /*#[test]
@@ -613,7 +612,6 @@ mod tests {
 
     #[test]
     fn test_triangulate_3_points() {
-        println!("aaaaa");
         let vertices: &[Point2<f32>] = &[
             Point2::new(0.76809347, 0.17880994),
             Point2::new(0.14206064, 0.8896956),

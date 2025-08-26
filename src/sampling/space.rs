@@ -1,5 +1,5 @@
 use std::marker::Sized;
-use crate::coord::{Vertex, Point2};
+use crate::geometry::coord::{Vertex, Point2};
 pub trait Space: Sized {
     type Sample: Vertex;
 

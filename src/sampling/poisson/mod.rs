@@ -1,6 +1,6 @@
 use rand;
 //use super::TorusTwoDim;
-use crate::coord::{Normed, Point2};
+use crate::geometry::coord::{Normed, Point2};
 use std::ops::Sub;
 
 pub struct PoissonDisc<Sp, D>
@@ -44,7 +44,7 @@ where
 }
 use crate::sampling::TwoDim;
 use partition::Equal2DSizedGrid;
-use crate::coord::Vertex;
+use crate::geometry::coord::Vertex;
 const NUM_NEW_POINTS: usize = 10;
 use super::{Sampler, Space};
 use crate::sampling::space;
@@ -135,7 +135,7 @@ mod tests {
     use super::{Sampler, PoissonDisc, CustomDensity};
     use crate::{
         sampling::space::TwoDim,
-        coord::{Point2, Normed}
+        geometry::coord::{Point2, Normed}
     };
     use image::{Rgb, RgbImage};
     use imageproc::drawing::draw_cross_mut;

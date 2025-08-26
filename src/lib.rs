@@ -9,15 +9,13 @@ extern crate imageproc;
 #[macro_use]
 extern crate rand;
 
-mod sampling;
-mod coord;
-mod triangulation;
-mod sweep_line_triangulation;
-mod noise;
+pub mod sampling;
+pub mod geometry;
+pub mod triangulation;
+pub mod noise;
 mod nav_mesh;
-mod marching_square;
 
-pub use crate::coord::Point2;
+pub use crate::geometry::coord::Point2;
 
 fn lies_on_positive_half_plane(p: &Point2<f32>, a: &Point2<f32>, b: &Point2<f32>) -> bool {
     let ap = p - a;
@@ -327,7 +325,7 @@ impl<'a> Iterator for EdgeIterator<'a> {
 #[cfg(test)]
 mod tests {
     use super::{lies_on_positive_half_plane, Triangle, Shape, VertexIdx, triangulate};
-    use crate::coord::Point2;
+    use crate::geometry::coord::Point2;
     #[test]
     fn half_plane_position() {
         let a = Point2::new(0.0, 0.0);

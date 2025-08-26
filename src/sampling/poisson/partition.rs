@@ -10,7 +10,7 @@ pub trait EqualSizedGrid {
 
 use crate::{
     sampling::space::TwoDim,
-    coord::Point2
+    geometry::coord::Point2
 };
 pub struct Equal2DSizedGrid<F> {
     num_cell_width: usize,

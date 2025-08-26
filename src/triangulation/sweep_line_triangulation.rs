@@ -22,7 +22,7 @@ struct Hull {
 }
 
 const UNASSIGNED: usize = std::usize::MAX;
-use crate::coord::Point2;
+use crate::geometry::coord::Point2;
 impl Hull {
     fn new(num_points: usize, first_vertex_idx: usize, points: &[Point2<f32>]) -> Self {
         //let n = (num_points as f32).sqrt().ceil() as usize;
@@ -202,7 +202,7 @@ impl Vertex for Point2<f32> {
 
 #[cfg(test)]
 mod tests {
-    use crate::coord::Point2;
+    use crate::geometry::coord::Point2;
     use crate::VertexIdx;
     use super::Vertex;
 

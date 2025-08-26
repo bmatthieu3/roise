@@ -19,7 +19,7 @@ mod tests {
     use super::{Sampler, RandUniform};
     use crate::{
         sampling::space::TwoDim,
-        coord::{Point2, Normed}
+        geometry::coord::{Point2, Normed}
     };
     use image::{Rgb, RgbImage};
     use imageproc::drawing::draw_cross_mut;

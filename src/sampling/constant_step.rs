@@ -2,7 +2,7 @@ use crate::sampling::TwoDim;
 pub struct ConstantStepUniform {
     cell_size: f32
 }
-use crate::coord::{Vertex, Point2};
+use crate::geometry::coord::{Vertex, Point2};
 
 impl ConstantStepUniform {
     pub fn new(cell_size: f32) -> Self {
