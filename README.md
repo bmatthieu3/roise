@@ -28,9 +28,9 @@ use imageproc::drawing::draw_line_segment_mut;
 use image::RgbImage;
 
 use roise::{
-    marching_square::{extract_isocontours_from_heightmap, ClosedPolyline},
+    triangulation::marching_square::extract_isocontours_from_heightmap,
     triangulation::DelaunayTriangulation,
-    Point2,
+    geometry::coord::{Point2, ClosedPolyline},
     noise::Gradient
 };
 
