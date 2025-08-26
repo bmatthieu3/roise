@@ -71,3 +71,5 @@ for t in triangulation {
 
 img.save("triangulation.png").unwrap();
 ```
+<img width="1024" height="1024" alt="coutours_triangulated2" src="https://github.com/user-attachments/assets/5a14a1c2-0124-44eb-8944-48085824cda9" />
+
