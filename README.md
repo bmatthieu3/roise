@@ -27,11 +27,12 @@ use imageproc::drawing::draw_cross_mut;
 use imageproc::drawing::draw_line_segment_mut;
 use image::RgbImage;
 
-use crate::marching_square::extract_isocontours_from_heightmap;
-use crate::marching_square::ClosedPolyline;
-use crate::triangulation::DelaunayTriangulation;
-use crate::Point2;
-use crate::noise::Gradient;
+use roise::{
+    marching_square::{extract_isocontours_from_heightmap, ClosedPolyline},
+    triangulation::DelaunayTriangulation,
+    Point2,
+    noise::Gradient
+};
 
 let gradient = Gradient::new();
 let contours = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
@@ -68,5 +69,5 @@ for t in triangulation {
     }
 }
 
-img.save("coutours_triangulated2.png").unwrap();
+img.save("triangulation.png").unwrap();
 ```
