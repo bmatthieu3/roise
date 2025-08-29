@@ -11,7 +11,7 @@ pub trait Normed {
 
 impl Normed for Point2<f32> {
     fn magnitude(&self) -> f32 {
-        (self.x*self.x + self.y*self.y).sqrt()
+        self.magnitude_squared().sqrt()
     }
 
     fn magnitude_squared(&self) -> f32 {
