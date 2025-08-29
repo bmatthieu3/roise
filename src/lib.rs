@@ -9,6 +9,8 @@ extern crate imageproc;
 #[macro_use]
 extern crate rand;
 
+pub mod graph;
+
 pub mod sampling;
 pub mod geometry;
 pub mod triangulation;
