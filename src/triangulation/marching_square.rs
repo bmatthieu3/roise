@@ -47,7 +47,7 @@ const MARCHING_SQUARE_TABLE: &[&[(Point2<i8>, Point2<i8>)]] = &[
     &[],
 ];
 
-fn extract_isocontours_from_heightmap<F>(num_sampling_vertices: i32, inside_area: F) -> Vec<ClosedPolyline>
+pub fn extract_isocontours_from_heightmap<F>(num_sampling_vertices: i32, inside_area: F) -> Vec<ClosedPolyline>
 where
     F: Fn(Point2<f32>) -> bool,
 {
@@ -234,7 +234,7 @@ mod tests {
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for t in triangulation {
-            for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
                     (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
@@ -247,15 +247,13 @@ mod tests {
         img.save("coutours_triangulated.png").unwrap();
     }
 
-#[test]
+    #[test]
     fn test_triangulate_cdt_from_contours() {
         let gradient = Gradient::new();
         let contours = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
             let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
             noise >= 0.45
         });
-
-        dbg!(contours[0].vertices.len());
 
         let vertices = contours
             .iter()
@@ -271,7 +269,7 @@ mod tests {
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for t in triangulation {
-            for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
                     (vertices[idx1].x * w, vertices[idx1].y * h),              // start point

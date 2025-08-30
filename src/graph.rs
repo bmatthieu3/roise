@@ -3,9 +3,10 @@ use std::cmp::Ordering;
 
 use crate::Point2;
 
-struct Graph {
+#[derive(Debug)]
+pub(crate) struct Graph {
     /// Adjacency map
-    adj: HashMap<usize, Vec<usize>>,
+    pub(crate) adj: HashMap<usize, Vec<usize>>,
 }
 
 #[derive(Debug)]
@@ -69,13 +70,11 @@ impl Graph {
         open_list_set.insert(start, node.clone());
         open_list.push(node);
 
-        let mut prev_idx = start;
-
         while let Some(curr) = open_list.pop() {
-            open_list_set.remove(&curr.idx).unwrap();
-
-            //came_from.insert(curr.idx, prev_idx);
-            //prev_idx = curr.idx;
+            let curr_node = open_list_set.remove(&curr.idx);
+            if curr_node.is_none() {
+                continue;
+            }
 
             if curr.idx == end {
                 // We arrived to the end node
@@ -100,33 +99,25 @@ impl Graph {
                 for &neigh_idx in self.adj.get(&curr.idx).unwrap() {
                     // Neighbor already included in path are discarded
                     if !came_from.contains_key(&neigh_idx) {
-                        let curr_neigh_cost = curr.cost + 1.0;
-                        match open_list_set.get(&neigh_idx) {
-                            Some(neigh_node) if neigh_node.cost > curr_neigh_cost => {
-                                // update the node in the open list if the cost is less
-                                let node = Node {
-                                    idx: neigh_idx,
-                                    cost: curr_neigh_cost,
-                                    heuristic: curr_neigh_cost + geometries[neigh_idx].distance2_to(&geometries[end])
-                                };
-                                open_list_set.insert(neigh_idx, node.clone());
-                                open_list.push(node);
+                        let curr_neigh_cost = curr.cost + geometries[curr.idx].distance2_to(&geometries[neigh_idx]);
+                        //let curr_neigh_cost = curr.cost + 1.0;
 
-                                came_from.insert(neigh_idx, curr.idx);
-                            },
-                            None => {
-                                // update the node in the open list if the cost is less
-                                let node = Node {
-                                    idx: neigh_idx,
-                                    cost: curr_neigh_cost,
-                                    heuristic: curr_neigh_cost + geometries[neigh_idx].distance2_to(&geometries[end])
-                                };
-                                open_list_set.insert(neigh_idx, node.clone());
-                                open_list.push(node);
+                        let needs_update = match open_list_set.get(&neigh_idx) {
+                            Some(neigh_node) => neigh_node.cost > curr_neigh_cost,
+                            None => true,
+                        };
 
-                                came_from.insert(neigh_idx, curr.idx);
-                            },
-                            _ => ()
+                        if needs_update {
+                            // update the node in the open list if the cost is less
+                            let node = Node {
+                                idx: neigh_idx,
+                                cost: curr_neigh_cost,
+                                heuristic: curr_neigh_cost + geometries[neigh_idx].distance2_to(&geometries[end])
+                            };
+                            open_list_set.insert(neigh_idx, node.clone());
+                            open_list.push(node);
+
+                            came_from.insert(neigh_idx, curr.idx);
                         }
                     }
                 }
@@ -139,8 +130,15 @@ impl Graph {
 
 #[cfg(test)]
 mod tests {
+    use image::Rgb;
+    use imageproc::drawing::draw_line_segment_mut;
+    use image::RgbImage;
+    use crate::geometry::closed_polyline::ClosedPolyline;
+    use crate::noise::Gradient;
+
     use crate::Point2;
     use std::collections::HashMap;
+    use crate::triangulation::DelaunayTriangulation;
 
     use super::Graph;
     #[test]
@@ -220,6 +218,135 @@ mod tests {
 
         // Path length should be minimal (4 steps in Manhattan distance)
         assert_eq!(path.len(), 5);
+    }
+
+    #[test]
+    fn test_astar_on_cdt() {
+        let gradient = Gradient::new();
+        let contours = crate::triangulation::marching_square::extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
+            noise >= 0.45
+        });
+
+        let vertices = contours
+            .iter()
+            .cloned()
+            .flat_map(|ClosedPolyline { mut vertices }| {
+                let _ = vertices.pop();
+                vertices
+            })
+            .collect::<Vec<_>>();
+
+        let triangulation = DelaunayTriangulation::from_contours(&contours);
+        let barycenters = triangulation.triangles.iter().map(|(u, v, w)| {
+            (u.get_vertex(&vertices) + v.get_vertex(&vertices) + w.get_vertex(&vertices)) / 3.0
+        }).collect::<Vec<Point2<f32>>>();
+        let graph = triangulation.graph();
+
+        let path = graph
+            .find_path(100, 600, &barycenters)
+            .expect("no path found");
+
+       
+
+        let (w, h) = (1024.0, 1024.0);
+        let mut img = RgbImage::new(w as u32, h as u32);
+        for t in triangulation {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
+                draw_line_segment_mut(
+                    &mut img,
+                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
+                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                );
+            }
+        }
+
+
+        for (&idx1, &idx2) in path.iter().zip(path.iter().skip(1)) {
+            draw_line_segment_mut(
+                &mut img,
+                (barycenters[idx1].x * w, barycenters[idx1].y * h),              // start point
+                (barycenters[idx2].x * w, barycenters[idx2].y * h),            // end point
+                Rgb([255u8, 0u8, 0u8]), // RGB colors
+            );
+        }
+
+        img.save("nav_mesh_pathfinding.png").unwrap();
+    }
+
+        #[test]
+    fn test_graph_from_cdt() {
+        let gradient = Gradient::new();
+        let contours = crate::triangulation::marching_square::extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
+            noise >= 0.45
+        });
+
+        let vertices = contours
+            .iter()
+            .cloned()
+            .flat_map(|ClosedPolyline { mut vertices }| {
+                let _ = vertices.pop();
+                vertices
+            })
+            .collect::<Vec<_>>();
+
+        let triangulation = DelaunayTriangulation::from_contours(&contours);
+        let barycenters = triangulation.triangles.iter().map(|(u, v, w)| {
+            (u.get_vertex(&vertices) + v.get_vertex(&vertices) + w.get_vertex(&vertices)) / 3.0
+        }).collect::<Vec<Point2<f32>>>();
+
+        let Graph { adj } = triangulation.graph();
+
+        let (w, h) = (1024.0, 1024.0);
+        let mut img = RgbImage::new(w as u32, h as u32);
+        for t in triangulation {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
+                draw_line_segment_mut(
+                    &mut img,
+                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
+                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                );
+            }
+        }
+
+        for (t_idx, neigh_indices) in adj.iter() {
+            for n_idx in neigh_indices {
+                let neigh_neigh_indices = adj.get(n_idx).unwrap();
+                assert!(neigh_neigh_indices.contains(t_idx));
+                //if neigh_neigh_indices.contains(t_idx) {
+                    draw_line_segment_mut(
+                        &mut img,
+                        (barycenters[*t_idx].x * w, barycenters[*t_idx].y * h),              // start point
+                        (barycenters[*n_idx].x * w, barycenters[*n_idx].y * h),            // end point
+                        Rgb([255u8, 0u8, 255u8]), // RGB colors
+                    );
+                /*} else {
+                    dbg!(t_idx, neigh_neigh_indices);
+
+                    draw_line_segment_mut(
+                        &mut img,
+                        (barycenters[*t_idx].x * w, barycenters[*t_idx].y * h),              // start point
+                        (barycenters[*n_idx].x * w, barycenters[*n_idx].y * h),            // end point
+                        Rgb([255u8, 0u8, 0u8]), // RGB colors
+                    );
+                }*/
+                //
+
+                /*for nn_idx in neigh_neigh_indices {
+                    draw_line_segment_mut(
+                        &mut img,
+                        (barycenters[*n_idx].x * w, 1.0 + barycenters[*n_idx].y * h),              // start point
+                        (barycenters[*nn_idx].x * w, 1.0 + barycenters[*nn_idx].y * h),            // end point
+                        Rgb([255u8, 255u8, 0u8]), // RGB colors
+                    );
+                }*/
+            } 
+        }
+
+        img.save("nav_mesh_graph.png").unwrap();
     }
 }
 

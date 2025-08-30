@@ -1,7 +1,7 @@
 use super::{VertexIdx, Edge};
 use crate::geometry::coord::Point2;
 
-mod marching_square;
+pub mod marching_square;
 mod sweep_line_triangulation;
 
 use crate::geometry::closed_polyline::ClosedPolyline;
@@ -12,7 +12,7 @@ use std::collections::{HashMap, HashSet};
 #[derive(Debug)]
 pub struct DelaunayTriangulation {
     vertices: HashMap<(VertexIdx, VertexIdx), VertexIdx>,
-    triangles: HashSet<(VertexIdx, VertexIdx, VertexIdx)>,
+    pub triangles: HashSet<(VertexIdx, VertexIdx, VertexIdx)>,
 }
 
 /// Compute the intersection given by the two segments
@@ -59,48 +59,6 @@ pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &
             None
         }
     }
-
-    /*if num.abs() < eps && denom.abs() < eps {
-        let rr = r.dot(&r);
-        if rr.abs() < eps {
-            return None;
-        }
-
-        let mut t0 = v3_minus_v1.dot(&r) / rr;
-        let mut t1 = t0 + s.dot(&r) / rr;
-
-        if s.dot(&r) < 0.0 {
-            std::mem::swap(&mut t0, &mut t1);
-        }
-
-        let is_overlapping = (t1 >= 0.0 && t0 <= 1.0);
-        if is_overlapping {
-            // Give one point 
-            if t0 >= 0.0 {
-                Some(v1 + r*t0)
-            } else {
-                Some(v1 + r*t1)
-            }
-        } else {
-            None
-        }
-    } else if denom.abs() < eps && num != 0.0 {
-        // the segments are parallel and not intersecting
-        None
-    } else if num != 0.0 {
-        let u = num / denom;
-        let t = (&v3_minus_v1).det(&s) / denom;
-
-        // the segments are not parallel and intersecting
-        if u >= 0.0 && u <= 1.0 && t >= 0.0 && t <= 1.0 {
-            Some(v1 + r*t)
-        } else {
-            None
-        }
-    } else {
-        // The segments are not parallel and not intersecting
-        None
-    }*/
 }
 
 pub fn barycenter(u: &Point2<f32>, v: &Point2<f32>, w: &Point2<f32>) -> Point2<f32> {
@@ -168,6 +126,8 @@ pub(crate) const SUPER_VERTICES: &[Point2<f32>] = &[
     Point2::new(3.0, -1.0),
     Point2::new(0.0, 3.0),
 ];
+
+use crate::graph::Graph;
 
 impl DelaunayTriangulation {
     pub fn from_vertices(vertices: &[Point2<f32>]) -> Self {
@@ -245,6 +205,55 @@ impl DelaunayTriangulation {
         triangulation
     }
 
+    pub fn graph(&self) -> Graph {
+        // Build an edge map
+        let mut edges: HashMap<(VertexIdx, VertexIdx), usize> = HashMap::new();
+
+        for (i, (u, v, w)) in self.triangles.iter().enumerate() {
+            edges.insert((*u, *v), i);
+            edges.insert((*v, *w), i);
+            edges.insert((*w, *u), i);
+
+            /*let neigh = edges.entry((*u, *v)).or_insert(vec![i]);
+            neigh.push(i);
+
+            let neigh = edges.entry((*v, *w)).or_insert(vec![i]);
+            neigh.push(i);
+
+            let neigh = edges.entry((*w, *u)).or_insert(vec![i]);
+            neigh.push(i);*/
+
+            /*let neigh = edges.entry((*v, *u)).or_insert(vec![i]);
+            neigh.push(i);
+
+            let neigh = edges.entry((*w, *v)).or_insert(vec![i]);
+            neigh.push(i);
+
+            let neigh = edges.entry((*u, *w)).or_insert(vec![i]);
+            neigh.push(i);*/
+        }
+
+        let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (i, (u, v, w)) in self.triangles.iter().enumerate() {
+            let mut neigh = vec![];
+            if let Some(a) = edges.get(&(*v, *u)) {
+                neigh.push(*a);
+            }
+            if let Some(b) = edges.get(&(*w, *v)) {
+                neigh.push(*b);
+            }
+            if let Some(c) = edges.get(&(*u, *w)) {
+                neigh.push(*c);
+            }
+
+            adj.insert(i, neigh);
+        }
+
+        Graph {
+            adj
+        }
+    }
+
     /// u is the vertex to insert in the triangulation
     /// This methods walks in the triangulation to find
     /// one triangle whose circumcircle encloses u
@@ -312,8 +321,8 @@ impl DelaunayTriangulation {
         match (u, v, w) {
             (VertexIdx::Vertices(_), VertexIdx::Vertices(_), VertexIdx::Vertices(_)) => {
                 self.triangles.insert((u, v, w));
-                self.triangles.insert((v, w, u));
-                self.triangles.insert((w, u, v));
+                //self.triangles.insert((v, w, u));
+                //self.triangles.insert((w, u, v));
             },
             _ => ()
         }
@@ -371,30 +380,6 @@ impl DelaunayTriangulation {
 
             let mut caveat_polyline = HashMap::new();
 
-            /*let mut insert_triangle = |a: VertexIdx, b: VertexIdx, c: VertexIdx| {
-                let e1 = (std::cmp::min(a, b), std::cmp::max(a, b));
-                let e2 = (std::cmp::min(b, c), std::cmp::max(b, c));
-                let e3 = (std::cmp::min(c, a), std::cmp::max(c, a));
-
-                if let Some(p) = caveat_polyline.get_mut(&e1) {
-                    *p += 1;
-                } else {
-                    caveat_polyline.insert(e1, 1);
-                }
-                if let Some(p) = caveat_polyline.get_mut(&e2) {
-                    *p += 1;
-                } else {
-                    caveat_polyline.insert(e2, 1);
-                }
-                if let Some(p) = caveat_polyline.get_mut(&e3) {
-                    *p += 1;
-                } else {
-                    caveat_polyline.insert(e3, 1);
-                }
-            };*/
-
-            //insert_triangle(a, b, c);
-
             caveat_polyline.insert(u, b);
             caveat_polyline.insert(c, u);
 
@@ -412,7 +397,6 @@ impl DelaunayTriangulation {
                         let r = (v.get_vertex(vertices) - u.get_vertex(vertices)).dot(&(d.get_vertex(vertices) - u.get_vertex(vertices)));
                         let is_colinear = r.abs() < 1e-9;
 
-                        dbg!(is_colinear);
                         if is_colinear {
                             self.enforce_edge(d, v, vertices);
                         } else if intersection(u.get_vertex(vertices), v.get_vertex(vertices), b.get_vertex(vertices), d.get_vertex(vertices)).is_some() {
@@ -431,8 +415,7 @@ impl DelaunayTriangulation {
             }
 
             //caveat_polyline = caveat_polyline.into_iter().filter(|(k, v)| *v == 1).collect();
-            
-            dbg!(&caveat_polyline, u, v);
+            //dbg!(&caveat_polyline, u, v);
 
             for t in triangles_intersecting {
                 self.delete_triangle(t.0, t.1, self.adjacent(t.0, t.1).unwrap());
@@ -634,7 +617,7 @@ mod tests {
         let (w, h) = (512.0, 512.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for t in triangulation {
-            for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
                 //let v1 = idx.get_vertex(super_triangle)
 
                 draw_line_segment_mut(
