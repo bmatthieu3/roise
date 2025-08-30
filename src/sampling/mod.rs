@@ -1,11 +1,11 @@
-mod space;
+mod constant_step;
 mod poisson;
 mod random_uniform;
-mod constant_step;
+mod space;
 
-pub use poisson::{PoissonDisc, CustomDensity};
-pub use random_uniform::RandUniform;
 pub use constant_step::ConstantStepUniform;
+pub use poisson::{CustomDensity, PoissonDisc};
+pub use random_uniform::RandUniform;
 
 pub use space::{Space, TwoDim};
 pub trait Sampler<Sp>

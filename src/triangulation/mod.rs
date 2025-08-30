@@ -14,7 +14,12 @@ pub struct DelaunayTriangulation {
 
 /// Compute the intersection given by the two segments
 /// [v1; v2] and [v3; v4]
-pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &Point2<f32>) -> Option<Point2<f32>> {
+pub fn intersection(
+    v1: &Point2<f32>,
+    v2: &Point2<f32>,
+    v3: &Point2<f32>,
+    v4: &Point2<f32>,
+) -> Option<Point2<f32>> {
     let r = v2 - v1;
     let s = v4 - v3;
 
@@ -41,7 +46,7 @@ pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &
             if t1 < 0.0 || t0 > 1.0 {
                 None
             } else {
-                Some(v1 + r * t0.clamp(0.0, 1.0))  // or return (segment)
+                Some(v1 + r * t0.clamp(0.0, 1.0)) // or return (segment)
             }
         } else {
             None
@@ -59,10 +64,16 @@ pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &
 }
 
 pub fn barycenter(u: &Point2<f32>, v: &Point2<f32>, w: &Point2<f32>) -> Point2<f32> {
-    (u + v + w)/3.0
+    (u + v + w) / 3.0
 }
 
-fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2<f32>]) -> (VertexIdx, VertexIdx) {
+fn edge_intersect(
+    u: VertexIdx,
+    v: VertexIdx,
+    w: VertexIdx,
+    x: VertexIdx,
+    vertices: &[Point2<f32>],
+) -> (VertexIdx, VertexIdx) {
     // Get the ending vertex
     let up = u.get_vertex(vertices);
     // Get the triangle vertices
@@ -73,7 +84,7 @@ fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertic
 
     if intersection(up, &b, vp, wp).is_some() {
         (v, w)
-    } else if intersection(up,  &b, wp, xp).is_some() {
+    } else if intersection(up, &b, wp, xp).is_some() {
         (w, x)
     } else {
         //assert!(intersection(&b, up, xp, vp).is_some());
@@ -91,7 +102,13 @@ fn is_triangle_convex(a: VertexIdx, b: VertexIdx, c: VertexIdx, vertices: &[Poin
     (pb.x - pa.x) * (pc.y - pa.y) - (pb.y - pa.y) * (pc.x - pa.x) > 0.0
 }
 
-fn point_in_triangle(p: VertexIdx, a: VertexIdx, b: VertexIdx, c: VertexIdx, vertices: &[Point2<f32>]) -> bool {
+fn point_in_triangle(
+    p: VertexIdx,
+    a: VertexIdx,
+    b: VertexIdx,
+    c: VertexIdx,
+    vertices: &[Point2<f32>],
+) -> bool {
     let o1 = is_triangle_convex(a, b, p, vertices);
     let o2 = is_triangle_convex(b, c, p, vertices);
     let o3 = is_triangle_convex(c, a, p, vertices);
@@ -102,17 +119,27 @@ fn point_in_triangle(p: VertexIdx, a: VertexIdx, b: VertexIdx, c: VertexIdx, ver
     !(has_pos && has_neg)
 }
 
-fn is_ear(prev: VertexIdx, curr: VertexIdx, next: VertexIdx, polygon: &[VertexIdx], vertices: &[Point2<f32>]) -> bool {
+fn is_ear(
+    prev: VertexIdx,
+    curr: VertexIdx,
+    next: VertexIdx,
+    polygon: &[VertexIdx],
+    vertices: &[Point2<f32>],
+) -> bool {
     if !is_triangle_convex(prev, curr, next, vertices) {
         return false;
     }
 
     for p in polygon {
-        if *p != prev && *p != curr && *p != next && point_in_triangle(*p, prev, curr, next, vertices) {
+        if *p != prev
+            && *p != curr
+            && *p != next
+            && point_in_triangle(*p, prev, curr, next, vertices)
+        {
             return false;
         }
     }
-        
+
     true
 }
 
@@ -122,7 +149,6 @@ pub(crate) const SUPER_VERTICES: &[Point2<f32>] = &[
     Point2::new(0.0, 3.0),
 ];
 
-
 impl DelaunayTriangulation {
     pub fn from_vertices(vertices: &[Point2<f32>]) -> Self {
         let mut triangulation = Self {
@@ -131,12 +157,17 @@ impl DelaunayTriangulation {
         };
 
         // Insert the first super triangle
-        triangulation.add_triangle(VertexIdx::Super(0), VertexIdx::Super(1), VertexIdx::Super(2));
+        triangulation.add_triangle(
+            VertexIdx::Super(0),
+            VertexIdx::Super(1),
+            VertexIdx::Super(2),
+        );
 
         for (idx_vertex, vertex) in vertices.iter().enumerate() {
             let u = VertexIdx::Vertices(idx_vertex);
 
-            if let Some((v, w, x)) = triangulation.get_triangle_whose_circle_encloses_u(u, vertices) {
+            if let Some((v, w, x)) = triangulation.get_triangle_whose_circle_encloses_u(u, vertices)
+            {
                 triangulation.insert_vertex(u, v, w, x, vertices);
             } else {
                 panic!("the vertex {:?} is outside the triangulation", vertex);
@@ -166,7 +197,11 @@ impl DelaunayTriangulation {
         for num_vertices_in_contour in num_vertices_per_contour {
             let mut i = num_vertices_in_contour - 1;
             for j in 0..num_vertices_in_contour {
-                triangulation.enforce_edge(VertexIdx::Vertices(off + i), VertexIdx::Vertices(off + j), &vertices);
+                triangulation.enforce_edge(
+                    VertexIdx::Vertices(off + i),
+                    VertexIdx::Vertices(off + j),
+                    &vertices,
+                );
 
                 i = j;
             }
@@ -177,7 +212,11 @@ impl DelaunayTriangulation {
         let mut t_delete = vec![];
         for (u, v, w) in triangulation.triangles.iter() {
             //let w = triangulation.adjacent(u, v).unwrap();
-            let b = barycenter(u.get_vertex(&vertices), v.get_vertex(&vertices), w.get_vertex(&vertices));
+            let b = barycenter(
+                u.get_vertex(&vertices),
+                v.get_vertex(&vertices),
+                w.get_vertex(&vertices),
+            );
 
             let mut is_in_hole = !contours[0].contains(&b);
 
@@ -202,7 +241,11 @@ impl DelaunayTriangulation {
     /// u is the vertex to insert in the triangulation
     /// This methods walks in the triangulation to find
     /// one triangle whose circumcircle encloses u
-    pub fn get_triangle_whose_circle_encloses_u(&self, u: VertexIdx, vertices: &[Point2<f32>]) -> Option<(VertexIdx, VertexIdx, VertexIdx)> {
+    pub fn get_triangle_whose_circle_encloses_u(
+        &self,
+        u: VertexIdx,
+        vertices: &[Point2<f32>],
+    ) -> Option<(VertexIdx, VertexIdx, VertexIdx)> {
         if let Some(((mut v, mut w), x)) = self.vertices.iter().next() {
             let mut x = *x;
             // First triangle (vwx) is positively defined
@@ -234,7 +277,14 @@ impl DelaunayTriangulation {
     /// Insert the vertex u in the triangulation
     /// given a positively oriented triangle vwx whose
     /// circumcircle encloses u
-    pub fn insert_vertex(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2<f32>]) {
+    pub fn insert_vertex(
+        &mut self,
+        u: VertexIdx,
+        v: VertexIdx,
+        w: VertexIdx,
+        x: VertexIdx,
+        vertices: &[Point2<f32>],
+    ) {
         self.delete_triangle(v, w, x);
         self.dig_cavity(u, v, w, vertices);
         self.dig_cavity(u, w, x, vertices);
@@ -257,18 +307,22 @@ impl DelaunayTriangulation {
 
     fn add_triangle(&mut self, u: VertexIdx, v: VertexIdx, w: VertexIdx) {
         // Reject triangles containing an edge given in the same order
-        if self.vertices.contains_key(&(u, v)) || self.vertices.contains_key(&(v, w)) || self.vertices.contains_key(&(w, u)) {
+        if self.vertices.contains_key(&(u, v))
+            || self.vertices.contains_key(&(v, w))
+            || self.vertices.contains_key(&(w, u))
+        {
             return;
         }
 
         // Do not add the triangles at the border of the triangulation
         // i.e. those containing super vertices.
-        if let (VertexIdx::Vertices(_), VertexIdx::Vertices(_), VertexIdx::Vertices(_)) = (u, v, w) {
+        if let (VertexIdx::Vertices(_), VertexIdx::Vertices(_), VertexIdx::Vertices(_)) = (u, v, w)
+        {
             self.triangles.insert((u, v, w));
             //self.triangles.insert((v, w, u));
             //self.triangles.insert((w, u, v));
         }
-    
+
         self.vertices.insert((u, v), w);
         self.vertices.insert((v, w), u);
         self.vertices.insert((w, u), v);
@@ -289,14 +343,42 @@ impl DelaunayTriangulation {
     }
 
     // find a triangle containing u and directed towards v
-    fn find_triangle_containing_u(&self, u: VertexIdx, v: VertexIdx, vertices: &[Point2<f32>]) -> Option<(VertexIdx, VertexIdx, VertexIdx)> {
+    fn find_triangle_containing_u(
+        &self,
+        u: VertexIdx,
+        v: VertexIdx,
+        vertices: &[Point2<f32>],
+    ) -> Option<(VertexIdx, VertexIdx, VertexIdx)> {
         for ((a, b), c) in &self.vertices {
-
-            if u == *a && intersection(u.get_vertex(vertices), v.get_vertex(vertices), b.get_vertex(vertices), c.get_vertex(vertices)).is_some() {
+            if u == *a
+                && intersection(
+                    u.get_vertex(vertices),
+                    v.get_vertex(vertices),
+                    b.get_vertex(vertices),
+                    c.get_vertex(vertices),
+                )
+                .is_some()
+            {
                 return Some((*a, *b, *c));
-            } else if u == *b && intersection(u.get_vertex(vertices), v.get_vertex(vertices), c.get_vertex(vertices), a.get_vertex(vertices)).is_some() {
+            } else if u == *b
+                && intersection(
+                    u.get_vertex(vertices),
+                    v.get_vertex(vertices),
+                    c.get_vertex(vertices),
+                    a.get_vertex(vertices),
+                )
+                .is_some()
+            {
                 return Some((*b, *c, *a));
-            } else if u == *c && intersection(u.get_vertex(vertices), v.get_vertex(vertices), a.get_vertex(vertices), b.get_vertex(vertices)).is_some() {
+            } else if u == *c
+                && intersection(
+                    u.get_vertex(vertices),
+                    v.get_vertex(vertices),
+                    a.get_vertex(vertices),
+                    b.get_vertex(vertices),
+                )
+                .is_some()
+            {
                 return Some((*c, *a, *b));
             }
         }
@@ -318,7 +400,7 @@ impl DelaunayTriangulation {
             // u == a
             // We know here that uv intersects (b, c)
 
-            let mut triangles_intersecting= vec![(a, b)];
+            let mut triangles_intersecting = vec![(a, b)];
 
             let mut caveat_polyline = HashMap::new();
 
@@ -336,15 +418,30 @@ impl DelaunayTriangulation {
 
                         break;
                     } else {
-                        let r = (v.get_vertex(vertices) - u.get_vertex(vertices)).dot(&(d.get_vertex(vertices) - u.get_vertex(vertices)));
+                        let r = (v.get_vertex(vertices) - u.get_vertex(vertices))
+                            .dot(&(d.get_vertex(vertices) - u.get_vertex(vertices)));
                         let is_colinear = r.abs() < 1e-9;
 
                         if is_colinear {
                             self.enforce_edge(d, v, vertices);
-                        } else if intersection(u.get_vertex(vertices), v.get_vertex(vertices), b.get_vertex(vertices), d.get_vertex(vertices)).is_some() {
+                        } else if intersection(
+                            u.get_vertex(vertices),
+                            v.get_vertex(vertices),
+                            b.get_vertex(vertices),
+                            d.get_vertex(vertices),
+                        )
+                        .is_some()
+                        {
                             caveat_polyline.insert(d, c);
                             c = d;
-                        } else if intersection(u.get_vertex(vertices), v.get_vertex(vertices), c.get_vertex(vertices), d.get_vertex(vertices)).is_some() {
+                        } else if intersection(
+                            u.get_vertex(vertices),
+                            v.get_vertex(vertices),
+                            c.get_vertex(vertices),
+                            d.get_vertex(vertices),
+                        )
+                        .is_some()
+                        {
                             caveat_polyline.insert(b, d);
                             b = d;
                         } else {
@@ -362,7 +459,6 @@ impl DelaunayTriangulation {
             for t in triangles_intersecting {
                 self.delete_triangle(t.0, t.1, self.adjacent(t.0, t.1).unwrap());
             }
-
 
             // At this point caveat_polyline form an ordered polygon of the caveat
             // we will create 2 closed polylines in ccw and sharing (u, v)
@@ -402,26 +498,30 @@ impl DelaunayTriangulation {
         }
     }
 
-    fn triangulate_polygon(&self, mut polyline: Vec<VertexIdx>, vertices: &[Point2<f32>]) -> Vec<(VertexIdx, VertexIdx, VertexIdx)> {
+    fn triangulate_polygon(
+        &self,
+        mut polyline: Vec<VertexIdx>,
+        vertices: &[Point2<f32>],
+    ) -> Vec<(VertexIdx, VertexIdx, VertexIdx)> {
         let mut triangles = vec![];
 
         while polyline.len() > 3 {
             for i in 0..polyline.len() {
-                let prev = polyline[(i-1) % polyline.len()];
+                let prev = polyline[(i - 1) % polyline.len()];
                 let curr = polyline[i % polyline.len()];
-                let next = polyline[(i+1) % polyline.len()];
+                let next = polyline[(i + 1) % polyline.len()];
 
                 // Check ear: no other point inside triangle
                 if is_ear(prev, curr, next, &polyline, vertices) {
                     // This is an ear
-                    triangles.push( (prev, curr, next) );
+                    triangles.push((prev, curr, next));
                     polyline.remove(i);
                     break;
                 }
             }
         }
         // Add the last triangle
-        triangles.push( (polyline[0], polyline[1], polyline[2]) );
+        triangles.push((polyline[0], polyline[1], polyline[2]));
 
         triangles
     }
@@ -449,8 +549,8 @@ impl Iterator for TriangleIntoIterator {
             let (u, v, w) = match (u, v, w) {
                 (VertexIdx::Vertices(u), VertexIdx::Vertices(v), VertexIdx::Vertices(w)) => {
                     (u, v, w)
-                },
-                _ => unreachable!()
+                }
+                _ => unreachable!(),
             };
 
             Some([u, v, w])
@@ -463,7 +563,13 @@ impl Iterator for TriangleIntoIterator {
 
 /// u is the vertex to test
 /// v, w, x defines a positively oriented triangle
-fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertices: &[Point2<f32>]) -> bool {
+fn in_circumcircle(
+    u: VertexIdx,
+    v: VertexIdx,
+    w: VertexIdx,
+    x: VertexIdx,
+    vertices: &[Point2<f32>],
+) -> bool {
     let uv = u.get_vertex(vertices);
     let vv = v.get_vertex(vertices);
     let wv = w.get_vertex(vertices);
@@ -475,17 +581,18 @@ fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, verti
     //       | cx-px, cy-py, (cx-px)² + (cy-py)² |
     let a1 = vv.x - uv.x;
     let b1 = wv.x - uv.x;
-    let c1 = xv.x - uv.x ;
+    let c1 = xv.x - uv.x;
 
     let a2 = vv.y - uv.y;
     let b2 = wv.y - uv.y;
     let c2 = xv.y - uv.y;
 
-    let a3 = a1*a1 + a2*a2;
-    let b3 = b1*b1 + b2*b2;
-    let c3 = c1*c1 + c2*c2;
+    let a3 = a1 * a1 + a2 * a2;
+    let b3 = b1 * b1 + b2 * b2;
+    let c3 = c1 * c1 + c2 * c2;
 
-    let det = a1*b2*c3 + a2*b3*c1 + b1*c2*a3 - c1*b2*a3 - c2*b3*a1 - b1*a2*c3;
+    let det =
+        a1 * b2 * c3 + a2 * b3 * c1 + b1 * c2 * a3 - c1 * b2 * a3 - c2 * b3 * a1 - b1 * a2 * c3;
     const EPS: f32 = 1e-12;
     if det > EPS {
         true
@@ -503,7 +610,6 @@ fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, verti
 mod tests {
     use super::DelaunayTriangulation;
     use crate::geometry::coord::Point2;
-    
 
     /*#[test]
     fn test_triangulate() {
@@ -511,7 +617,7 @@ mod tests {
             na::Point2::new(0.3, 0.1),
             na::Point2::new(0.5, 0.4),
         ];
-        
+
         for t in triangulate2(vertices).into_iter() {
             println!("{:?}", t);
         }
@@ -548,9 +654,9 @@ mod tests {
 
                 draw_line_segment_mut(
                     &mut img,
-                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
-                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
-                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                    (vertices[idx1].x * w, vertices[idx1].y * h), // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h), // end point
+                    Rgb([69u8, 203u8, 133u8]),                    // RGB colors
                 );
             }
         }

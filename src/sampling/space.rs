@@ -1,5 +1,5 @@
+use crate::geometry::coord::{Point2, Vertex};
 use std::marker::Sized;
-use crate::geometry::coord::{Vertex, Point2};
 pub trait Space: Sized {
     type Sample: Vertex;
 
@@ -21,38 +21,34 @@ pub trait Space: Sized {
 
 pub struct TwoDim<F>
 where
-    F: Fn(&Point2<f32>) -> bool
+    F: Fn(&Point2<f32>) -> bool,
 {
-    constraint: F
+    constraint: F,
 }
 
 impl<F> TwoDim<F>
 where
-    F: Fn(&Point2<f32>) -> bool
+    F: Fn(&Point2<f32>) -> bool,
 {
     pub fn new(constraint: F) -> Self {
-        Self {
-            constraint
-        }
+        Self { constraint }
     }
 }
 
 use std::ops::Fn;
 impl<F> Space for TwoDim<F>
-where F: Fn(&Point2<f32>) -> bool {
+where
+    F: Fn(&Point2<f32>) -> bool,
+{
     type Sample = Point2<f32>;
 
     fn random_unconstrained() -> Self::Sample {
-        Point2::new(
-            rand::random::<f32>(),
-            rand::random::<f32>()
-        )
+        Point2::new(rand::random::<f32>(), rand::random::<f32>())
     }
 
     fn inside(&self, p: &Self::Sample) -> bool {
         // 1. chech whether it is in [0, 1] x [0, 1]
-        let inside_full_space = p.x >= 0.0 && p.x < 1.0 &&
-            p.y >= 0.0 && p.y < 1.0;
+        let inside_full_space = p.x >= 0.0 && p.x < 1.0 && p.y >= 0.0 && p.y < 1.0;
         if inside_full_space {
             // 2. check the constraint
             (self.constraint)(p)

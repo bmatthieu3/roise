@@ -7,7 +7,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     let vertices = (0..num_vertices)
         .map(|_| Point2::new(rand::random::<f32>(), rand::random::<f32>()))
         .collect::<Vec<_>>();
-    c.bench_function("triangulation", |b| b.iter(|| triangulate(black_box(&vertices))));
+    c.bench_function("triangulation", |b| {
+        b.iter(|| triangulate(black_box(&vertices)))
+    });
 }
 
 criterion_group!(benches, criterion_benchmark);

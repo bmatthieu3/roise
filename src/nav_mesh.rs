@@ -2,7 +2,7 @@ use crate::Point2;
 
 pub struct NavMesh {
     pub triangulation: Vec<[usize; 3]>,
-    pub vertices: Vec<Point2<f32>>
+    pub vertices: Vec<Point2<f32>>,
 }
 
 pub fn build_nav_mesh() -> NavMesh {
@@ -28,7 +28,7 @@ pub fn build_nav_mesh() -> NavMesh {
             s.inside(v1) && s.inside(v2) && s.inside(v3)
         }).collect();
 
-    NavMesh { 
+    NavMesh {
         vertices,
         triangulation
     }*/
@@ -37,15 +37,15 @@ pub fn build_nav_mesh() -> NavMesh {
 
 #[cfg(test)]
 mod tests {
-    use image::Rgb;
+    /*use image::Rgb;
+    use image::RgbImage;
     use imageproc::drawing::draw_cross_mut;
     use imageproc::drawing::draw_line_segment_mut;
-    use image::RgbImage;
 
     use crate::nav_mesh::NavMesh;
-    /*#[test]
+    #[test]
     fn test_build_nav_mesh() {
-        
+
         let NavMesh { triangulation, vertices } = super::build_nav_mesh();
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);

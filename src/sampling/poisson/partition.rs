@@ -4,14 +4,14 @@ pub trait EqualSizedGrid {
 
     fn new(cell_size: f32) -> Self;
     fn insert(&mut self, p: &<Self::Sp as Space>::Sample) -> VertexIdx;
-    fn neighbors(&self, p: &<Self::Sp as Space>::Sample, samples: &[<Self::Sp as Space>::Sample]) -> Vec<&Vec<VertexIdx>>;
+    fn neighbors(
+        &self,
+        p: &<Self::Sp as Space>::Sample,
+        samples: &[<Self::Sp as Space>::Sample],
+    ) -> Vec<&Vec<VertexIdx>>;
 }
 
-
-use crate::{
-    sampling::space::TwoDim,
-    geometry::coord::Point2
-};
+use crate::{geometry::coord::Point2, sampling::space::TwoDim};
 pub struct Equal2DSizedGrid<F> {
     num_cell_width: usize,
     num_cell_height: usize,
@@ -23,7 +23,9 @@ pub struct Equal2DSizedGrid<F> {
 type VertexIdx = usize;
 
 impl<F> EqualSizedGrid for Equal2DSizedGrid<F>
-where F: Fn(&Point2<f32>) -> bool {
+where
+    F: Fn(&Point2<f32>) -> bool,
+{
     type Sp = TwoDim<F>;
 
     fn new(cell_size: f32) -> Self {
@@ -38,14 +40,14 @@ where F: Fn(&Point2<f32>) -> bool {
             num_points_inserted,
             grid,
             cell_size,
-            f: std::marker::PhantomData
+            f: std::marker::PhantomData,
         }
     }
 
     fn insert(&mut self, p: &Point2<f32>) -> VertexIdx {
         let i = (p.x / self.cell_size) as usize;
         let j = (p.y / self.cell_size) as usize;
-    
+
         let idx = j * self.num_cell_width + i;
         let idx_new_point = self.num_points_inserted;
         if let Some(idx_points) = &mut self.grid[idx] {
@@ -76,8 +78,8 @@ where F: Fn(&Point2<f32>) -> bool {
             cur_row: idx_row_min,
             cur_col: idx_col_min,
 
-            row_rng: idx_row_min..(idx_row_max+1),
-            col_rng: idx_col_min..(idx_col_max+1),
+            row_rng: idx_row_min..(idx_row_max + 1),
+            col_rng: idx_col_min..(idx_col_max + 1),
 
             finished: false,
         };
@@ -98,7 +100,7 @@ struct NeighborsIter<'a, F> {
 
 impl<'a, F> Iterator for NeighborsIter<'a, F> {
     type Item = &'a Vec<VertexIdx>;
-    
+
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished {
             None
@@ -115,7 +117,8 @@ impl<'a, F> Iterator for NeighborsIter<'a, F> {
                     self.cur_col += 1;
                 }
 
-                self.finished = (self.cur_row == self.row_rng.end - 1) && (self.cur_col == self.col_rng.end - 1);
+                self.finished = (self.cur_row == self.row_rng.end - 1)
+                    && (self.cur_col == self.col_rng.end - 1);
             }
 
             found

@@ -2,7 +2,7 @@ use crate::geometry::coord::Point2;
 
 #[derive(Clone)]
 pub struct ClosedPolyline {
-    pub vertices: Vec<Point2<f32>>
+    pub vertices: Vec<Point2<f32>>,
 }
 
 impl ClosedPolyline {
@@ -46,9 +46,9 @@ impl ClosedPolyline {
 fn perpendicular_distance(p: Point2<f32>, a: Point2<f32>, b: Point2<f32>) -> f32 {
     let ab = b - a;
     let ap = p - a;
-    let len = (ab.x*ab.x + ab.y*ab.y).sqrt();
+    let len = (ab.x * ab.x + ab.y * ab.y).sqrt();
     if len < 1e-9 {
-        (ap.x*ap.x + ap.y*ap.y).sqrt()
+        (ap.x * ap.x + ap.y * ap.y).sqrt()
     } else {
         (ab.y * p.x - ab.x * p.y + b.x * a.y - b.y * a.x).abs() / len
     }
@@ -61,8 +61,8 @@ pub(crate) fn douglas_peucker(points: &[Point2<f32>], epsilon: f32) -> Vec<Point
 
     // Find the point with the max distance from the line [first, last]
     let (mut index, mut max_dist) = (0, 0.0);
-    for i in 1..(points.len()-1) {
-        let d = perpendicular_distance(points[i], points[0], points[points.len()-1]);
+    for i in 1..(points.len() - 1) {
+        let d = perpendicular_distance(points[i], points[0], points[points.len() - 1]);
         if d > max_dist {
             index = i;
             max_dist = d;
@@ -79,6 +79,6 @@ pub(crate) fn douglas_peucker(points: &[Point2<f32>], epsilon: f32) -> Vec<Point
         left
     } else {
         // Otherwise just keep the endpoints
-        vec![points[0], points[points.len()-1]]
+        vec![points[0], points[points.len() - 1]]
     }
 }

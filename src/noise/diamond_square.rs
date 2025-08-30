@@ -33,12 +33,12 @@ impl DiamondSquare {
             for y in (y_start..(SIZE as i32)).step_by(step_size) {
                 for x in (x_start..(SIZE as i32)).step_by(step_size) {
                     let r = (rand::random::<f32>() - 0.5) * amplitude;
-                    pixels[y as usize][x as usize] = 0.25 * (
-                        pixels[(y - half_step) as usize][(x - half_step) as usize] +
-                        pixels[(y - half_step) as usize][(x + half_step) as usize] +
-                        pixels[(y + half_step) as usize][(x - half_step) as usize] + 
-                        pixels[(y + half_step) as usize][(x + half_step) as usize]
-                    ) + r;
+                    pixels[y as usize][x as usize] = 0.25
+                        * (pixels[(y - half_step) as usize][(x - half_step) as usize]
+                            + pixels[(y - half_step) as usize][(x + half_step) as usize]
+                            + pixels[(y + half_step) as usize][(x - half_step) as usize]
+                            + pixels[(y + half_step) as usize][(x + half_step) as usize])
+                        + r;
                 }
             }
 
@@ -56,20 +56,24 @@ impl DiamondSquare {
                     pixels[y as usize][x_off as usize] = 0.0;
 
                     if x_off - half_step >= 0 {
-                        pixels[y as usize][x_off as usize] += pixels[y as usize][(x_off - half_step) as usize];
+                        pixels[y as usize][x_off as usize] +=
+                            pixels[y as usize][(x_off - half_step) as usize];
                         num_acc += 1;
                     }
                     if x_off + half_step < SIZE as i32 {
-                        pixels[y as usize][x_off as usize] += pixels[y as usize][(x_off + half_step) as usize];
+                        pixels[y as usize][x_off as usize] +=
+                            pixels[y as usize][(x_off + half_step) as usize];
                         num_acc += 1;
                     }
 
                     if y - half_step >= 0 {
-                        pixels[y as usize][x_off as usize] += pixels[(y - half_step) as usize][x_off as usize];
+                        pixels[y as usize][x_off as usize] +=
+                            pixels[(y - half_step) as usize][x_off as usize];
                         num_acc += 1;
                     }
                     if y + half_step < SIZE as i32 {
-                        pixels[y as usize][x_off as usize] += pixels[(y + half_step) as usize][x_off as usize];
+                        pixels[y as usize][x_off as usize] +=
+                            pixels[(y + half_step) as usize][x_off as usize];
                         num_acc += 1;
                     }
                     let r = (rand::random::<f32>() - 0.5) * amplitude;
@@ -83,9 +87,7 @@ impl DiamondSquare {
             step_size >>= 1;
         }
 
-        Self {
-            pixels,
-        }
+        Self { pixels }
     }
 }
 
@@ -109,13 +111,15 @@ mod tests {
     #[test]
     fn test_diamond_square() {
         let diamond = DiamondSquare::new(0.9);
-        let pixels = diamond.pixels.into_iter()
+        let pixels = diamond
+            .pixels
+            .into_iter()
             .flatten()
-            .map(|c| (255.0*c) as u8)
+            .map(|c| (255.0 * c) as u8)
             .collect();
-        let image = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(SIZE as u32, SIZE as u32, pixels).unwrap();
+        let image =
+            ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(SIZE as u32, SIZE as u32, pixels).unwrap();
 
         let _ = image.save("output1.jpg");
     }
 }
-

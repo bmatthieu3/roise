@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::geometry::coord::Point2;
 use crate::geometry::closed_polyline::ClosedPolyline;
+use crate::geometry::coord::Point2;
 
 // See this article for the figure giving the 16 possible cases
 // https://nils-olovsson.se/articles/marching_squares/
@@ -47,16 +47,19 @@ const MARCHING_SQUARE_TABLE: &[&[(Point2<i8>, Point2<i8>)]] = &[
     &[],
 ];
 
-pub fn extract_isocontours_from_heightmap<F>(num_sampling_vertices: i32, inside_area: F) -> Vec<ClosedPolyline>
+pub fn extract_isocontours_from_heightmap<F>(
+    num_sampling_vertices: i32,
+    inside_area: F,
+) -> Vec<ClosedPolyline>
 where
     F: Fn(Point2<f32>) -> bool,
 {
     let square_size = 1.0 / (num_sampling_vertices as f32 - 1.0);
 
     let mut edges: HashMap<(i32, i32), (i32, i32, usize)> = HashMap::new();
-    for i in (-1)..(num_sampling_vertices+1) {
+    for i in (-1)..(num_sampling_vertices + 1) {
         let y = (i as f32) * square_size;
-        for j in (-1)..(num_sampling_vertices+1) {
+        for j in (-1)..(num_sampling_vertices + 1) {
             let x = (j as f32) * square_size;
 
             let tl_in = if i == -1 || j == -1 {
@@ -80,7 +83,10 @@ where
                 inside_area(Point2::new(x + square_size, y + square_size))
             };
 
-            let code = ((tl_in as usize) << 3) | ((tr_in as usize) << 2) | ((br_in as usize) << 1) | (bl_in as usize);
+            let code = ((tl_in as usize) << 3)
+                | ((tr_in as usize) << 2)
+                | ((br_in as usize) << 1)
+                | (bl_in as usize);
 
             let i_half_cell = i << 1;
             let j_half_cell = j << 1;
@@ -106,30 +112,26 @@ where
         let mut vertices = vec![];
         // Extract one arbitrary edge to start the contour
         if let Some(mut start) = edges.keys().next().cloned() {
-            let p1 = Point2::new(
-                (start.0) as f32,
-                (start.1) as f32,
-            ) / (((num_sampling_vertices) * 2) as f32);
+            let p1 = Point2::new((start.0) as f32, (start.1) as f32)
+                / (((num_sampling_vertices) * 2) as f32);
             vertices.push(p1);
 
             while let Some((cx, cy, ccode)) = edges.remove(&start) {
-                let cur_vertex = Point2::new(
-                    cx as f32,
-                    cy as f32,
-                ) / (((num_sampling_vertices) * 2) as f32);
+                let cur_vertex =
+                    Point2::new(cx as f32, cy as f32) / (((num_sampling_vertices) * 2) as f32);
 
                 // peek the next one to see if its code matches.
                 // If so we should we do not need to add the cur vertex to the contour
                 match edges.get(&(cx, cy)) {
                     Some((_, _, ncode)) if *ncode == ccode => (),
-                    _ => vertices.push(cur_vertex)
+                    _ => vertices.push(cur_vertex),
                 }
                 start = (cx, cy);
             }
 
             assert_eq!(vertices[0], vertices[vertices.len() - 1]);
 
-            let polygon = ClosedPolyline {vertices};
+            let polygon = ClosedPolyline { vertices };
 
             let area = polygon.signed_area().abs();
             // find the outer contour
@@ -148,12 +150,15 @@ where
     contours.swap(0, outer_contour);
 
     // simplify the contours using douglas-peucker rec algo
-    
 
-    contours.into_iter()
+    contours
+        .into_iter()
         .filter_map(|mut contour| {
             let last = contour.vertices.pop().unwrap();
-            contour.vertices = crate::geometry::closed_polyline::douglas_peucker(&contour.vertices[0..(contour.vertices.len() - 1)], square_size * 0.5);
+            contour.vertices = crate::geometry::closed_polyline::douglas_peucker(
+                &contour.vertices[0..(contour.vertices.len() - 1)],
+                square_size * 0.5,
+            );
             contour.vertices.push(last);
 
             if contour.vertices.len() == 3 {
@@ -168,34 +173,38 @@ where
 #[cfg(test)]
 mod tests {
     use image::Rgb;
+    use image::RgbImage;
     use imageproc::drawing::draw_cross_mut;
     use imageproc::drawing::draw_line_segment_mut;
-    use image::RgbImage;
 
-    use crate::triangulation::marching_square::extract_isocontours_from_heightmap;
     use crate::geometry::closed_polyline::ClosedPolyline;
-    
-    use crate::triangulation::DelaunayTriangulation;
+    use crate::triangulation::marching_square::extract_isocontours_from_heightmap;
+
     use crate::geometry::coord::Point2;
     use crate::noise::Gradient;
+    use crate::triangulation::DelaunayTriangulation;
     #[test]
     fn test_contour_extract() {
         let gradient = Gradient::new();
         let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0) * std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);
         for ClosedPolyline { vertices } in polygons {
-            let color = Rgb([(rand::random::<f32>() * 255.0) as u8, (rand::random::<f32>() * 255.0) as u8, 255u8]);
+            let color = Rgb([
+                (rand::random::<f32>() * 255.0) as u8,
+                (rand::random::<f32>() * 255.0) as u8,
+                255u8,
+            ]);
             for (p1, p2) in vertices.iter().zip(vertices.iter().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
-                    ((p1.x * w).round(), (p1.y * h).round()),              // start point
-                    ((p2.x * w).round(), (p2.y * h).round()),            // end point
-                    color, // RGB colors
+                    ((p1.x * w).round(), (p1.y * h).round()), // start point
+                    ((p2.x * w).round(), (p2.y * h).round()), // end point
+                    color,                                    // RGB colors
                 );
             }
 
@@ -203,8 +212,8 @@ mod tests {
                 draw_cross_mut(
                     &mut img,
                     Rgb([200u8, 203u8, 133u8]),
-                    (p.x * 1024.0) as i32,              // start point
-                    (p.y * 1024.0) as i32,            // end point
+                    (p.x * 1024.0) as i32, // start point
+                    (p.y * 1024.0) as i32, // end point
                 );
             }
         }
@@ -212,12 +221,11 @@ mod tests {
         img.save("contours.png").unwrap();
     }
 
-    
     #[test]
     fn test_triangulate_contours() {
         let gradient = Gradient::new();
         let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0) * std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
@@ -237,9 +245,9 @@ mod tests {
             for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
-                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
-                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
-                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                    (vertices[idx1].x * w, vertices[idx1].y * h), // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h), // end point
+                    Rgb([69u8, 203u8, 133u8]),                    // RGB colors
                 );
             }
         }
@@ -251,7 +259,7 @@ mod tests {
     fn test_triangulate_cdt_from_contours() {
         let gradient = Gradient::new();
         let contours = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01) * std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
@@ -272,9 +280,9 @@ mod tests {
             for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
-                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
-                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
-                    Rgb([69u8, 203u8, 133u8]), // RGB colors
+                    (vertices[idx1].x * w, vertices[idx1].y * h), // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h), // end point
+                    Rgb([69u8, 203u8, 133u8]),                    // RGB colors
                 );
             }
         }
@@ -292,7 +300,7 @@ mod tests {
                 Point2::new(1.5, 1.5),
                 Point2::new(0.0, 3.0),
                 Point2::new(0.0, 0.0),
-            ]
+            ],
         };
 
         assert!(polygon.contains(&Point2::new(1.5, 1.0)));
