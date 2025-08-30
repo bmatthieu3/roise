@@ -2,7 +2,7 @@ use crate::sampling::TwoDim;
 pub struct ConstantStepUniform {
     cell_size: f32
 }
-use crate::geometry::coord::{Vertex, Point2};
+use crate::geometry::coord::Point2;
 
 impl ConstantStepUniform {
     pub fn new(cell_size: f32) -> Self {
@@ -20,8 +20,7 @@ where
         let num_cell_side = (1.0 / self.cell_size) as usize + 1;
 
         (0..num_cell_side)
-            .map(|i| (0..num_cell_side).map(move |j| Point2::new(i as f32 / ((num_cell_side - 1) as f32), j as f32 / ((num_cell_side - 1) as f32))))
-            .flatten()
+            .flat_map(|i| (0..num_cell_side).map(move |j| Point2::new(i as f32 / ((num_cell_side - 1) as f32), j as f32 / ((num_cell_side - 1) as f32))))
             .filter(|p| {
                 space.inside(p)
             })

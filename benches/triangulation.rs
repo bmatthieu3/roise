@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
-use roise::{triangulate, triangulate2, Point2};
+use roise::{triangulate, Point2};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let num_vertices = 10000;
@@ -8,7 +8,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         .map(|_| Point2::new(rand::random::<f32>(), rand::random::<f32>()))
         .collect::<Vec<_>>();
     c.bench_function("triangulation", |b| b.iter(|| triangulate(black_box(&vertices))));
-    c.bench_function("triangulation2", |b| b.iter(|| triangulate2(black_box(&vertices))));
 }
 
 criterion_group!(benches, criterion_benchmark);

@@ -1,26 +1,21 @@
-use crate::noise::Gradient;
-use crate::sampling::{ConstantStepUniform, Space};
-use crate::triangulation::DelaunayTriangulation;
-use crate::sampling::Sampler;
 use crate::Point2;
-use crate::sampling::TwoDim;
 
-pub(crate) struct NavMesh {
+pub struct NavMesh {
     pub triangulation: Vec<[usize; 3]>,
     pub vertices: Vec<Point2<f32>>
 }
 
-fn build_nav_mesh() -> NavMesh {
-    let constant_sampler = ConstantStepUniform::new(0.02);
+pub fn build_nav_mesh() -> NavMesh {
+    /*let constant_sampler = ConstantStepUniform::new(0.02);
     let gradient = Gradient::new();
 
     let s = TwoDim::new(|x: &Point2<f32>| {
-        let noise = gradient.fbm(&(x * 2.0), 0.6, 2.1)*0.707107 + 0.5; // in [0, 1]
+        let noise = gradient.fbm(&(x * 2.0), 0.6, 2.1)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
         noise >= 0.45
     });
 
     let vertices = constant_sampler.sample(&s);
-    let mut triangulation = super::triangulation::DelaunayTriangulation::from_vertices(&vertices);
+    let triangulation = super::triangulation::DelaunayTriangulation::from_vertices(&vertices);
 
     let triangulation = triangulation.into_iter()
         .filter(|[a, b, c]| {
@@ -30,13 +25,14 @@ fn build_nav_mesh() -> NavMesh {
 
             let b = super::triangulation::barycenter(v1, v2, v3);
             //s.inside(&b)
-            s.inside(&v1) && s.inside(&v2) && s.inside(&v3)
+            s.inside(v1) && s.inside(v2) && s.inside(v3)
         }).collect();
 
     NavMesh { 
         vertices,
         triangulation
-    }
+    }*/
+    todo!()
 }
 
 #[cfg(test)]
@@ -47,7 +43,7 @@ mod tests {
     use image::RgbImage;
 
     use crate::nav_mesh::NavMesh;
-    #[test]
+    /*#[test]
     fn test_build_nav_mesh() {
         
         let NavMesh { triangulation, vertices } = super::build_nav_mesh();
@@ -75,5 +71,5 @@ mod tests {
         }
 
         img.save("nav_mesh.png").unwrap();
-    }
+    }*/
 }

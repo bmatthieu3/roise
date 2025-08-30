@@ -1,7 +1,5 @@
-use rand;
 //use super::TorusTwoDim;
 use crate::geometry::coord::{Normed, Point2};
-use std::ops::Sub;
 
 pub struct PoissonDisc<Sp, D>
 where
@@ -66,10 +64,10 @@ where
         let mut processed_points_idx = vec![idx_sample];
         let mut samples = vec![sample];
     
-        while !processed_points_idx.is_empty() {
-            let p_idx = processed_points_idx.pop().unwrap();
+        while let Some(p_idx) = processed_points_idx.pop() {
+            
     
-            for i in 0..NUM_NEW_POINTS {
+            for _ in 0..NUM_NEW_POINTS {
                 let dist = self.min_dist.get(&samples[p_idx]);
                 let samp = samples[p_idx].sample_around(dist, 2.0*dist);
 
@@ -138,9 +136,9 @@ mod tests {
         geometry::coord::{Point2, Normed}
     };
     use image::{Rgb, RgbImage};
-    use imageproc::drawing::draw_cross_mut;
+    
     use imageproc::drawing::draw_line_segment_mut;
-    use crate::DelaunayTriangulation;
+    use crate::triangulation::DelaunayTriangulation;
     #[test]
     fn test_poisson_disc() {
         let amplitude = 0.01;
@@ -172,11 +170,7 @@ mod tests {
                     let p = *p - Point2::new(0.5, 0.5);
                     let r = p.magnitude();
 
-                    if r <= 1.0 && r >= 0.2 {
-                        true
-                    } else {
-                        false
-                    }
+                    (0.2..=1.0).contains(&r)
                 }
             )
         );

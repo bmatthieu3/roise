@@ -1,12 +1,14 @@
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
 
+use crate::triangulation::DelaunayTriangulation;
 use crate::Point2;
+use crate::VertexIdx;
 
 #[derive(Debug)]
-pub(crate) struct Graph {
+pub struct Graph {
     /// Adjacency map
-    pub(crate) adj: HashMap<usize, Vec<usize>>,
+    adj: HashMap<usize, Vec<usize>>,
 }
 
 #[derive(Debug)]
@@ -22,7 +24,7 @@ struct Node {
 
 impl PartialOrd for Node {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.heuristic.partial_cmp(&self.heuristic)
+        Some(other.cmp(self))
     }
 }
 
@@ -30,21 +32,21 @@ impl PartialOrd for Node {
 impl Ord for Node {
     fn cmp(&self, other: &Self) -> Ordering {
         // no NaN expected to be compared
-        self.partial_cmp(other).unwrap()
+        self.heuristic.partial_cmp(&other.heuristic).unwrap()
     }
 }
 
 impl Eq for Node {}
 
 
-trait Metric {
+pub trait Metric {
     fn barycenter(&self) -> Point2<f32>;
 
     fn distance2_to<T>(&self, other: &T) -> f32
     where
         T: Metric
     {
-        let dp = (self.barycenter() - other.barycenter());
+        let dp = self.barycenter() - other.barycenter();
 
         dp.dot(&dp)
     }
@@ -57,7 +59,38 @@ impl Metric for Point2<f32> {
 }
 
 impl Graph {
-    fn find_path<T: Metric>(&self, start: usize, end: usize, geometries: &[T]) -> Option<Vec<usize>> {
+    pub fn from_triangulation(triangulation: &DelaunayTriangulation) -> Graph {
+        // Build an edge map
+        let mut edges: HashMap<(VertexIdx, VertexIdx), usize> = HashMap::new();
+
+        for (i, (u, v, w)) in triangulation.triangles.iter().enumerate() {
+            edges.insert((*u, *v), i);
+            edges.insert((*v, *w), i);
+            edges.insert((*w, *u), i);
+        }
+
+        let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
+        for (i, (u, v, w)) in triangulation.triangles.iter().enumerate() {
+            let mut neigh = vec![];
+            if let Some(a) = edges.get(&(*v, *u)) {
+                neigh.push(*a);
+            }
+            if let Some(b) = edges.get(&(*w, *v)) {
+                neigh.push(*b);
+            }
+            if let Some(c) = edges.get(&(*u, *w)) {
+                neigh.push(*c);
+            }
+
+            adj.insert(i, neigh);
+        }
+
+        Graph {
+            adj
+        }
+    }
+
+    pub fn find_path<T: Metric>(&self, start: usize, end: usize, geometries: &[T]) -> Option<Vec<usize>> {
         let mut came_from: HashMap<usize, usize> = HashMap::new();
 
         let mut open_list = BinaryHeap::new();
@@ -98,7 +131,7 @@ impl Graph {
                 // We are on our way
                 for &neigh_idx in self.adj.get(&curr.idx).unwrap() {
                     // Neighbor already included in path are discarded
-                    if !came_from.contains_key(&neigh_idx) {
+                    if let std::collections::hash_map::Entry::Vacant(e) = came_from.entry(neigh_idx) {
                         let curr_neigh_cost = curr.cost + geometries[curr.idx].distance2_to(&geometries[neigh_idx]);
                         //let curr_neigh_cost = curr.cost + 1.0;
 
@@ -117,7 +150,7 @@ impl Graph {
                             open_list_set.insert(neigh_idx, node.clone());
                             open_list.push(node);
 
-                            came_from.insert(neigh_idx, curr.idx);
+                            e.insert(curr.idx);
                         }
                     }
                 }
@@ -224,7 +257,7 @@ mod tests {
     fn test_astar_on_cdt() {
         let gradient = Gradient::new();
         let contours = crate::triangulation::marching_square::extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
@@ -241,7 +274,7 @@ mod tests {
         let barycenters = triangulation.triangles.iter().map(|(u, v, w)| {
             (u.get_vertex(&vertices) + v.get_vertex(&vertices) + w.get_vertex(&vertices)) / 3.0
         }).collect::<Vec<Point2<f32>>>();
-        let graph = triangulation.graph();
+        let graph = Graph::from_triangulation(&triangulation);
 
         let path = graph
             .find_path(100, 600, &barycenters)
@@ -279,7 +312,7 @@ mod tests {
     fn test_graph_from_cdt() {
         let gradient = Gradient::new();
         let contours = crate::triangulation::marching_square::extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
@@ -297,7 +330,7 @@ mod tests {
             (u.get_vertex(&vertices) + v.get_vertex(&vertices) + w.get_vertex(&vertices)) / 3.0
         }).collect::<Vec<Point2<f32>>>();
 
-        let Graph { adj } = triangulation.graph();
+        let Graph { adj } = Graph::from_triangulation(&triangulation);
 
         let (w, h) = (1024.0, 1024.0);
         let mut img = RgbImage::new(w as u32, h as u32);

@@ -1,6 +1,12 @@
 /// A simple gradient noise
 pub struct Gradient;
 
+impl Default for Gradient {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Gradient {
     pub fn new() -> Self {
         Self {}
@@ -11,7 +17,7 @@ impl Gradient {
         let mut amplitude = 1.0;
         let mut freq = 1.0;
         let mut noise = 0.0;
-        for i in 0..octave {
+        for _ in 0..octave {
             noise += amplitude * self.noise(&(p * freq));
             amplitude *= amplitude_factor;
             freq *= freq_factor;
@@ -21,8 +27,7 @@ impl Gradient {
     }
 }
 
-use crate::geometry::coord::{Point2, Vertex};
-use crate::sampling::Space;
+use crate::geometry::coord::Point2;
 
 use super::Noise;
 impl Noise<Point2<f32>> for Gradient {
@@ -48,7 +53,7 @@ impl Noise<Point2<f32>> for Gradient {
 
 fn random_f(p: &Point2<f32>) -> f32 {
     let t = p.dot(&Point2::new(12.9898, 78.233));
-    (t.sin() * 43758.5453123).fract()
+    (t.sin() * 43_758.547).fract()
 }
 
 fn lerp(x: f32, a0: f32, a1: f32) -> f32 {
@@ -64,17 +69,13 @@ fn random_vect(p: &Point2<f32>) -> Point2<f32> {
 #[cfg(test)]
 mod tests {
     use super::{Gradient};
-    use crate::{
-        noise::Noise,
-        geometry::coord::Point2
-    };
-    use crate::DelaunayTriangulation;
+    use crate::geometry::coord::Point2;
+    
 
-    use image::{ImageBuffer, Luma, Rgb};
-    use crate::sampling::{Sampler, PoissonDisc, TwoDim, CustomDensity};
-    use image::RgbImage;
-    use imageproc::drawing::draw_cross_mut;
-    use imageproc::drawing::draw_line_segment_mut;
+    use image::{ImageBuffer, Luma};
+    
+    
+    
     #[test]
     fn test_gradient() {
         let gradient = Gradient::new();
@@ -88,78 +89,14 @@ mod tests {
                 // where N is the number of dimension.
                 // For N = 2, we need to scale by sqrt(2)/2 and offset by 0.5 to have result between
                 // [0; 1]
-                let noise = noise*0.707107 + 0.5;
+                let noise = noise*std::f32::consts::FRAC_1_SQRT_2 + 0.5;
                 
                 let noise = noise.powf(4.0).abs() * (-1.0) + 1.0;
                 let color = (noise * 255.0) as u8;
                 pixels.push(color);
             }
         }
-        let mut image = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(size as u32, size as u32, pixels).unwrap();
-        image.save("gradient.png");
-    }
-
-    #[test]
-    fn test_nav_mesh() {
-        let gradient = Gradient::new();
-
-        // Init a poisson disc sampling for the trees
-        let s = PoissonDisc::new(
-            CustomDensity::new(
-                |x: &Point2<f32>| {
-                    let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
-                    if noise < 0.45 {
-                        0.01
-                    } else {
-                        0.05
-                    }
-                },
-                0.05
-            )        
-        );
-
-        let vertices = s.sample(
-            &TwoDim::new(
-                |p| true
-            )
-        );
-
-        /*let (w, h) = (1024.0, 1024.0);
-        let mut img = RgbImage::new(w as u32, h as u32);
-        for p in vertices.iter() {
-            draw_cross_mut(
-                &mut img,
-                Rgb([69u8, 203u8, 133u8]),
-                (p.x * 1024.0) as i32,              // start point
-                (p.y * 1024.0) as i32,            // end point
-            );
-        }
-        img.save("sampling_trees.png").unwrap();*/
-
-        let triangulation = DelaunayTriangulation::from_vertices(&vertices);
-        let (w, h) = (1024.0, 1024.0);
-        let mut img = RgbImage::new(w as u32, h as u32);
-        for t in triangulation {
-            for (&idx1, &idx2) in t.iter().zip(t.iter().skip(1).cycle()) {
-                //let v1 = idx.get_vertex(super_triangle)
-
-                draw_line_segment_mut(
-                    &mut img,
-                    (vertices[idx1].x * w, vertices[idx1].y * h),              // start point
-                    (vertices[idx2].x * w, vertices[idx2].y * h),            // end point
-                    Rgb([69u8, 203u8, 133u8]), // RGB colors
-                );
-            }
-        }
-        for p in vertices.iter() {
-            draw_cross_mut(
-                &mut img,
-                Rgb([200u8, 203u8, 133u8]),
-                (p.x * 1024.0) as i32,              // start point
-                (p.y * 1024.0) as i32,            // end point
-            );
-        }
-
-        img.save("nav_mesh.png").unwrap();
+        let image = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(size as u32, size as u32, pixels).unwrap();
+        let _ = image.save("gradient.png");
     }
 }

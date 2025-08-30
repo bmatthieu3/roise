@@ -72,7 +72,7 @@ pub(crate) fn douglas_peucker(points: &[Point2<f32>], epsilon: f32) -> Vec<Point
     // If the max distance is greater than epsilon, recursively simplify
     if max_dist > epsilon {
         let mut left = douglas_peucker(&points[0..=index], epsilon);
-        let mut right = douglas_peucker(&points[index..], epsilon);
+        let right = douglas_peucker(&points[index..], epsilon);
 
         left.pop(); // avoid duplicating the split point
         left.extend(right);

@@ -1,12 +1,9 @@
 // externing crate for test-only use
 #[cfg(test)]
-#[macro_use]
 extern crate image;
 #[cfg(test)]
-#[macro_use]
 extern crate imageproc;
 #[cfg(test)]
-#[macro_use]
 extern crate rand;
 
 pub mod graph;
@@ -15,7 +12,7 @@ pub mod sampling;
 pub mod geometry;
 pub mod triangulation;
 pub mod noise;
-mod nav_mesh;
+pub mod nav_mesh;
 
 pub use crate::geometry::coord::Point2;
 
@@ -26,7 +23,7 @@ fn lies_on_positive_half_plane(p: &Point2<f32>, a: &Point2<f32>, b: &Point2<f32>
 }
 
 #[derive(Clone, Copy)]
-#[derive(PartialEq, Ord, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash)]
 #[derive(Debug)]
 pub enum VertexIdx {
     Super(usize),
@@ -63,7 +60,6 @@ impl VertexIdx {
 
 use std::convert::TryInto;
 use std::collections::HashSet;
-use triangulation::DelaunayTriangulation;
 pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
     let mut triangulation = Vec::new();
     triangulation.push(
@@ -85,7 +81,7 @@ pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
             }
         });
 
-        let poly_edges = StarShapedPolygon::new(&bad_tri);
+        let poly_edges = get_star_shaped_polygon(&bad_tri);
 
         // Add triangles
         for e in poly_edges.into_iter() {
@@ -138,7 +134,35 @@ pub fn triangulate(vertices: &[Point2<f32>]) -> Box<[[usize; 3]]> {
     result.into_boxed_slice()
 }
 
-trait Shape {
+fn get_star_shaped_polygon(triangles: &[Triangle]) -> HashSet<Edge> {
+    let num_triangles = triangles.len();
+
+    if num_triangles == 1 {
+        triangles[0].edge_iter().collect()
+    } else {
+        let mut edges = triangles.iter()
+            .flat_map(|t| t.edge_iter().collect::<Vec<_>>())
+            .collect::<HashSet<_>>();
+
+        for i in 1..num_triangles {
+            let t1 = &triangles[i];
+            for t2 in triangles.iter().take(i) {
+                for (e1, e2) in t1.edge_iter().zip(t2.edge_iter()) {
+                    if t1.contains_edge(&e2) {
+                        edges.remove(&e2);
+                    }
+
+                    if t2.contains_edge(&e1) {
+                        edges.remove(&e1);
+                    }
+                }
+            }
+        }
+        edges
+    }
+}
+
+pub trait Shape {
     /// Triangle vertices are given in counter-clockwise order
     fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> bool;
 
@@ -168,39 +192,20 @@ impl Triangle {
             self.0[2].get_vertex(vertices),
         ]
     }
-
-    fn contains_super_triangle_vertex(&self) -> bool {
-        let mut contains_super_vertex = false;
-        for idx in &self.0 {
-            match idx {
-                VertexIdx::Super(_) => {
-                    contains_super_vertex = true;
-                    break;
-                }
-                _ => ()
-            }
-        }
-
-        contains_super_vertex
-    }
 }
 
 impl Shape for Triangle {
     fn contains(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> bool {
         let vertices = self.get_vertices(vertices);
 
-        let pos_e1 = lies_on_positive_half_plane(p, &vertices[0], &vertices[1]);
-        let pos_e2 = lies_on_positive_half_plane(p, &vertices[1], &vertices[2]);
+        let pos_e1 = lies_on_positive_half_plane(p, vertices[0], vertices[1]);
+        let pos_e2 = lies_on_positive_half_plane(p, vertices[1], vertices[2]);
         if pos_e1 != pos_e2 {
             false
         } else {
-            let pos_e3 = lies_on_positive_half_plane(p, &vertices[2], &vertices[0]);
+            let pos_e3 = lies_on_positive_half_plane(p, vertices[2], vertices[0]);
 
-            if pos_e1 != pos_e3 {
-                false
-            } else {
-                true
-            }
+            pos_e1 == pos_e3
         }
     }
 
@@ -243,46 +248,9 @@ impl Shape for Triangle {
     }
 }
 
-struct StarShapedPolygon {}
-
-impl StarShapedPolygon {
-    fn new(triangles: &[Triangle]) -> HashSet<Edge> {
-        let num_triangles = triangles.len();
-        let mut edges = HashSet::new();
-
-        if num_triangles == 1 {
-            edges = triangles[0].edge_iter().collect();
-        } else {
-            edges = triangles.iter()
-                .map(|t| t.edge_iter().collect::<Vec<_>>())
-                .flatten()
-                .collect::<HashSet<_>>();
-
-            for i in 1..num_triangles {
-                let t1 = &triangles[i];
-                for j in 0..i {
-                    let t2 = &triangles[j];
-                    for (e1, e2) in t1.edge_iter().zip(t2.edge_iter()) {
-                        if t1.contains_edge(&e2) {
-                            edges.remove(&e2);
-                        }
-
-                        if t2.contains_edge(&e1) {
-                            edges.remove(&e1);
-                        }
-                    }
-                }
-            }
-        }
-
-        edges
-    }
-}
-
 #[derive(Debug)]
-#[derive(Eq, Hash)]
-#[derive(Clone)]
-struct Edge(VertexIdx, VertexIdx);
+#[derive(Eq, Clone)]
+pub struct Edge(VertexIdx, VertexIdx);
 
 impl Edge {
     fn start(&self) -> VertexIdx {
@@ -294,6 +262,13 @@ impl Edge {
     }
 }
 
+impl std::hash::Hash for Edge {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+        self.1.hash(state);
+    }
+}
+
 impl PartialEq for Edge {
     fn eq(&self, other: &Self) -> bool {
         (self.0 == other.0 && self.1 == other.1) ||
@@ -301,11 +276,11 @@ impl PartialEq for Edge {
     }
 }
 
-struct EdgeIterator<'a> {
+pub struct EdgeIterator<'a> {
     edges: &'a [VertexIdx],
     cur_idx: usize,
 }
-impl<'a> Iterator for EdgeIterator<'a> {
+impl Iterator for EdgeIterator<'_> {
     type Item = Edge;
 
     fn next(&mut self) -> Option<Edge> {

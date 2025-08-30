@@ -86,11 +86,11 @@ where
             let j_half_cell = j << 1;
 
             for (p1, p2) in MARCHING_SQUARE_TABLE[code] {
-                let p1_x = (j_half_cell as i32) + (p1.x as i32) + 1;
-                let p1_y = (i_half_cell as i32) + (p1.y as i32) + 1;
+                let p1_x = j_half_cell + (p1.x as i32) + 1;
+                let p1_y = i_half_cell + (p1.y as i32) + 1;
 
-                let p2_x = (j_half_cell as i32) + (p2.x as i32) + 1;
-                let p2_y = (i_half_cell as i32) + (p2.y as i32) + 1;
+                let p2_x = j_half_cell + (p2.x as i32) + 1;
+                let p2_y = i_half_cell + (p2.y as i32) + 1;
 
                 edges.insert((p1_x, p1_y), (p2_x, p2_y, code));
             }
@@ -107,15 +107,15 @@ where
         // Extract one arbitrary edge to start the contour
         if let Some(mut start) = edges.keys().next().cloned() {
             let p1 = Point2::new(
-                ((start.0) as f32),
-                ((start.1) as f32),
+                (start.0) as f32,
+                (start.1) as f32,
             ) / (((num_sampling_vertices) * 2) as f32);
             vertices.push(p1);
 
             while let Some((cx, cy, ccode)) = edges.remove(&start) {
                 let cur_vertex = Point2::new(
-                    (cx as f32),
-                    (cy as f32),
+                    cx as f32,
+                    cy as f32,
                 ) / (((num_sampling_vertices) * 2) as f32);
 
                 // peek the next one to see if its code matches.
@@ -148,7 +148,9 @@ where
     contours.swap(0, outer_contour);
 
     // simplify the contours using douglas-peucker rec algo
-    let contours = contours.into_iter()
+    
+
+    contours.into_iter()
         .filter_map(|mut contour| {
             let last = contour.vertices.pop().unwrap();
             contour.vertices = crate::geometry::closed_polyline::douglas_peucker(&contour.vertices[0..(contour.vertices.len() - 1)], square_size * 0.5);
@@ -160,9 +162,7 @@ where
                 Some(contour)
             }
         })
-        .collect();
-
-    contours
+        .collect()
 }
 
 #[cfg(test)]
@@ -174,7 +174,7 @@ mod tests {
 
     use crate::triangulation::marching_square::extract_isocontours_from_heightmap;
     use crate::geometry::closed_polyline::ClosedPolyline;
-    use crate::nav_mesh::NavMesh;
+    
     use crate::triangulation::DelaunayTriangulation;
     use crate::geometry::coord::Point2;
     use crate::noise::Gradient;
@@ -182,7 +182,7 @@ mod tests {
     fn test_contour_extract() {
         let gradient = Gradient::new();
         let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
@@ -193,8 +193,8 @@ mod tests {
             for (p1, p2) in vertices.iter().zip(vertices.iter().skip(1)) {
                 draw_line_segment_mut(
                     &mut img,
-                    (((p1.x as f32) * w).round(), ((p1.y as f32) * h).round()),              // start point
-                    (((p2.x as f32) * w).round(), ((p2.y as f32) * h).round()),            // end point
+                    ((p1.x * w).round(), (p1.y * h).round()),              // start point
+                    ((p2.x * w).round(), (p2.y * h).round()),            // end point
                     color, // RGB colors
                 );
             }
@@ -212,12 +212,12 @@ mod tests {
         img.save("contours.png").unwrap();
     }
 
-    use std::collections::HashSet;
+    
     #[test]
     fn test_triangulate_contours() {
         let gradient = Gradient::new();
         let polygons = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.0), 0.6, 3.0)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 
@@ -251,7 +251,7 @@ mod tests {
     fn test_triangulate_cdt_from_contours() {
         let gradient = Gradient::new();
         let contours = extract_isocontours_from_heightmap(200, |x: Point2<f32>| {
-            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*0.707107 + 0.5; // in [0, 1]
+            let noise = gradient.fbm(&(x * 2.1), 0.6, 3.01)*std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
             noise >= 0.45
         });
 

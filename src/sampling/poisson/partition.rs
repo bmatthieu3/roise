@@ -30,7 +30,7 @@ where F: Fn(&Point2<f32>) -> bool {
         let num_cell_width = (1.0 / cell_size) as usize + 1;
         let num_cell_height = (1.0 / cell_size) as usize + 1;
 
-        let mut grid: Vec<Option<Vec<VertexIdx>>> = vec![None; num_cell_width * num_cell_height];
+        let grid: Vec<Option<Vec<VertexIdx>>> = vec![None; num_cell_width * num_cell_height];
         let num_points_inserted = 0;
         Self {
             num_cell_width,
@@ -59,7 +59,7 @@ where F: Fn(&Point2<f32>) -> bool {
         idx_new_point
     }
 
-    fn neighbors(&self, p: &Point2<f32>, samples: &[Point2<f32>]) -> Vec<&Vec<VertexIdx>> {
+    fn neighbors(&self, p: &Point2<f32>, _samples: &[Point2<f32>]) -> Vec<&Vec<VertexIdx>> {
         // Get the grid idx where the point is
         let idx_col = (p.x / self.cell_size) as i32;
         let idx_row = (p.y / self.cell_size) as i32;
@@ -72,7 +72,7 @@ where F: Fn(&Point2<f32>) -> bool {
         assert!(idx_row_max > idx_row_min);
 
         let it = NeighborsIter {
-            g: &self,
+            g: self,
             cur_row: idx_row_min,
             cur_col: idx_col_min,
 

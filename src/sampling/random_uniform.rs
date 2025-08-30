@@ -22,12 +22,12 @@ mod tests {
         geometry::coord::{Point2, Normed}
     };
     use image::{Rgb, RgbImage};
-    use imageproc::drawing::draw_cross_mut;
+    
     use imageproc::drawing::draw_line_segment_mut;
     #[test]
     fn test_poisson_disc() {
-        let amplitude = 0.01;
-        let offset = 0.005;
+        let _amplitude = 0.01;
+        let _offset = 0.005;
 
         let s = RandUniform {
             num_samples: 1000,
@@ -39,11 +39,7 @@ mod tests {
                     let p = *p - Point2::new(0.5, 0.5);
                     let r = p.magnitude();
 
-                    if r <= 1.0 && r >= 0.2 {
-                        true
-                    } else {
-                        false
-                    }
+                    (0.2..=1.0).contains(&r)
                 }
             )
         );

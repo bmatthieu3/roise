@@ -11,7 +11,7 @@ pub struct DiamondSquare {
 }
 
 impl DiamondSquare {
-    fn new(amplitude_factor: f32) -> Self {
+    pub fn new(amplitude_factor: f32) -> Self {
         let mut pixels = vec![vec![0.0; SIZE]; SIZE];
 
         // top left
@@ -29,7 +29,7 @@ impl DiamondSquare {
             let x_start = half_step;
             let y_start = half_step;
 
-            /// 2. Diamond step
+            // 2. Diamond step
             for y in (y_start..(SIZE as i32)).step_by(step_size) {
                 for x in (x_start..(SIZE as i32)).step_by(step_size) {
                     let r = (rand::random::<f32>() - 0.5) * amplitude;
@@ -43,7 +43,7 @@ impl DiamondSquare {
             }
 
             let mut offset = 0;
-            /// 3. Square step
+            // 3. Square step
             for y in (0_i32..(SIZE as i32)).step_by(half_step as usize) {
                 if offset == 0 {
                     offset = half_step;
@@ -52,7 +52,7 @@ impl DiamondSquare {
                 }
                 for x in (offset..(SIZE as i32)).step_by(step_size) {
                     let mut num_acc = 0;
-                    let x_off = x as i32;
+                    let x_off = x;
                     pixels[y as usize][x_off as usize] = 0.0;
 
                     if x_off - half_step >= 0 {
@@ -74,27 +74,22 @@ impl DiamondSquare {
                     }
                     let r = (rand::random::<f32>() - 0.5) * amplitude;
 
-                    pixels[y as usize][x_off as usize] /= (num_acc as f32);
+                    pixels[y as usize][x_off as usize] /= num_acc as f32;
                     pixels[y as usize][x_off as usize] += r;
                 }
             }
 
             amplitude *= amplitude_factor;
-            step_size = step_size >> 1;
+            step_size >>= 1;
         }
 
         Self {
             pixels,
         }
     }
-
-    const fn get_size() -> usize {
-        SIZE
-    }
 }
 
-use crate::geometry::coord::{Point2, Vertex};
-use crate::sampling::Space;
+use crate::geometry::coord::Point2;
 
 use super::Noise;
 impl Noise<Point2<f32>> for DiamondSquare {
@@ -109,7 +104,7 @@ impl Noise<Point2<f32>> for DiamondSquare {
 #[cfg(test)]
 mod tests {
     use super::{DiamondSquare, SIZE};
-    use image::{ImageBuffer, Luma, Rgb};
+    use image::{ImageBuffer, Luma};
 
     #[test]
     fn test_diamond_square() {
@@ -118,9 +113,9 @@ mod tests {
             .flatten()
             .map(|c| (255.0*c) as u8)
             .collect();
-        let mut image = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(SIZE as u32, SIZE as u32, pixels).unwrap();
+        let image = ImageBuffer::<Luma<u8>, Vec<u8>>::from_raw(SIZE as u32, SIZE as u32, pixels).unwrap();
 
-        image.save("output1.jpg");
+        let _ = image.save("output1.jpg");
     }
 }
 

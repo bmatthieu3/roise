@@ -1,12 +1,5 @@
-struct Triangulation {
-    // storing the vertex indices in counter clockwise order
-    vertices: Vec<usize>,
-    // storing the triangles indices neighbours
-    triangles: Vec<usize>,
-}
-
 /// Doubly circular linked chain
-struct Hull {
+pub struct Hull {
     // triangle indices following the vertices located on the frontier.
     // triangles has the same size as frontier
     vertices: Vec<usize>,
@@ -21,10 +14,10 @@ struct Hull {
     min_vertex: f32,
 }
 
-const UNASSIGNED: usize = std::usize::MAX;
+const UNASSIGNED: usize = usize::MAX;
 use crate::geometry::coord::Point2;
 impl Hull {
-    fn new(num_points: usize, first_vertex_idx: usize, points: &[Point2<f32>]) -> Self {
+    pub fn new(num_points: usize, first_vertex_idx: usize, points: &[Point2<f32>]) -> Self {
         //let n = (num_points as f32).sqrt().ceil() as usize;
         let n = num_points;
         let num = 1;
@@ -50,7 +43,7 @@ impl Hull {
         }
     }
 
-    fn insert_after(
+    pub fn insert_after(
         &mut self,
         // The vertex index in the hull after which the
         // new vertex will be inserted
@@ -83,7 +76,7 @@ impl Hull {
         }
     }
 
-    fn remove(
+    pub fn remove(
         &mut self,
         // The vertex to remove from the hull
         cur_idx: usize,
@@ -111,17 +104,7 @@ impl Hull {
         }
     }
 
-    fn next(&self, idx: usize) -> usize {
-        let next_idx = self.next[idx];
-        self.vertices[next_idx]
-    }
-
-    fn prev(&self, idx: usize) -> usize {
-        let prev_idx = self.prev[idx];
-        self.vertices[prev_idx]
-    }
-
-    fn edges<'a>(&'a self) -> EdgeIterator<'a> {
+    pub fn edges(&self) -> EdgeIterator<'_> {
         EdgeIterator {
             cur: self.first,
             num: 0,
@@ -130,14 +113,14 @@ impl Hull {
     }
 }
 
-struct EdgeIterator<'a> {
+pub struct EdgeIterator<'a> {
     hull: &'a Hull,
     // num edges processed
     cur: usize,
     num: usize
 }
 
-impl<'a> Iterator for EdgeIterator<'a> {
+impl Iterator for EdgeIterator<'_> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -159,7 +142,7 @@ impl<'a> Iterator for EdgeIterator<'a> {
     }
 }
 
-trait Vertex {
+pub trait Vertex {
     /// Check if the vertex is in the circumcircle defined
     /// by the vertices a, b and c
     fn in_circumcircle(&self, a: &Self, b: &Self, c: &Self) -> bool;
@@ -203,7 +186,7 @@ impl Vertex for Point2<f32> {
 #[cfg(test)]
 mod tests {
     use crate::geometry::coord::Point2;
-    use crate::VertexIdx;
+    
     use super::Vertex;
 
     #[test]
@@ -240,9 +223,9 @@ mod tests {
             Point2::new(0.14206064, 0.8896956),
             Point2::new(0.007408619, 0.17449331),
         ];
-        /*for t in triangulate2(&vertices).into_iter() {
+        for t in crate::triangulate(vertices).iter() {
             println!("{:?}", t);
-        }*/
+        }
     }
 
     use super::Hull;

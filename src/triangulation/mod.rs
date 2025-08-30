@@ -1,12 +1,9 @@
-use super::{VertexIdx, Edge};
+use super::VertexIdx;
 use crate::geometry::coord::Point2;
 
 pub mod marching_square;
-mod sweep_line_triangulation;
 
 use crate::geometry::closed_polyline::ClosedPolyline;
-
-type TriangleIdx = usize;
 
 use std::collections::{HashMap, HashSet};
 #[derive(Debug)]
@@ -21,7 +18,7 @@ pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &
     let r = v2 - v1;
     let s = v4 - v3;
 
-    let denom = (&r).det(&s);
+    let denom = r.det(&s);
     let v3_minus_v1 = v3 - v1;
     let num = v3_minus_v1.det(&r);
     let eps = 1e-9;
@@ -53,7 +50,7 @@ pub fn intersection(v1: &Point2<f32>, v2: &Point2<f32>,  v3: &Point2<f32>, v4: &
         let t = v3_minus_v1.det(&s) / denom;
         let u = num / denom;
 
-        if 0.0 <= t && t <= 1.0 && 0.0 <= u && u <= 1.0 {
+        if (0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u) {
             Some(v1 + r * t)
         } else {
             None
@@ -74,9 +71,9 @@ fn edge_intersect(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, vertic
     let xp = x.get_vertex(vertices);
     let b = barycenter(vp, wp, xp);
 
-    if let Some(_) = intersection(up, &b, vp, wp) {
+    if intersection(up, &b, vp, wp).is_some() {
         (v, w)
-    } else if let Some(_) = intersection(up,  &b, wp, xp) {
+    } else if intersection(up,  &b, wp, xp).is_some() {
         (w, x)
     } else {
         //assert!(intersection(&b, up, xp, vp).is_some());
@@ -111,10 +108,8 @@ fn is_ear(prev: VertexIdx, curr: VertexIdx, next: VertexIdx, polygon: &[VertexId
     }
 
     for p in polygon {
-        if *p != prev && *p != curr && *p != next {
-            if point_in_triangle(*p, prev, curr, next, vertices) {
-                return false;
-            }
+        if *p != prev && *p != curr && *p != next && point_in_triangle(*p, prev, curr, next, vertices) {
+            return false;
         }
     }
         
@@ -127,7 +122,6 @@ pub(crate) const SUPER_VERTICES: &[Point2<f32>] = &[
     Point2::new(0.0, 3.0),
 ];
 
-use crate::graph::Graph;
 
 impl DelaunayTriangulation {
     pub fn from_vertices(vertices: &[Point2<f32>]) -> Self {
@@ -156,7 +150,7 @@ impl DelaunayTriangulation {
         let mut num_vertices_per_contour = vec![];
 
         let vertices = contours
-            .into_iter()
+            .iter()
             .cloned()
             .flat_map(|ClosedPolyline { mut vertices }| {
                 let _ = vertices.pop();
@@ -203,55 +197,6 @@ impl DelaunayTriangulation {
         }
 
         triangulation
-    }
-
-    pub fn graph(&self) -> Graph {
-        // Build an edge map
-        let mut edges: HashMap<(VertexIdx, VertexIdx), usize> = HashMap::new();
-
-        for (i, (u, v, w)) in self.triangles.iter().enumerate() {
-            edges.insert((*u, *v), i);
-            edges.insert((*v, *w), i);
-            edges.insert((*w, *u), i);
-
-            /*let neigh = edges.entry((*u, *v)).or_insert(vec![i]);
-            neigh.push(i);
-
-            let neigh = edges.entry((*v, *w)).or_insert(vec![i]);
-            neigh.push(i);
-
-            let neigh = edges.entry((*w, *u)).or_insert(vec![i]);
-            neigh.push(i);*/
-
-            /*let neigh = edges.entry((*v, *u)).or_insert(vec![i]);
-            neigh.push(i);
-
-            let neigh = edges.entry((*w, *v)).or_insert(vec![i]);
-            neigh.push(i);
-
-            let neigh = edges.entry((*u, *w)).or_insert(vec![i]);
-            neigh.push(i);*/
-        }
-
-        let mut adj: HashMap<usize, Vec<usize>> = HashMap::new();
-        for (i, (u, v, w)) in self.triangles.iter().enumerate() {
-            let mut neigh = vec![];
-            if let Some(a) = edges.get(&(*v, *u)) {
-                neigh.push(*a);
-            }
-            if let Some(b) = edges.get(&(*w, *v)) {
-                neigh.push(*b);
-            }
-            if let Some(c) = edges.get(&(*u, *w)) {
-                neigh.push(*c);
-            }
-
-            adj.insert(i, neigh);
-        }
-
-        Graph {
-            adj
-        }
     }
 
     /// u is the vertex to insert in the triangulation
@@ -318,13 +263,10 @@ impl DelaunayTriangulation {
 
         // Do not add the triangles at the border of the triangulation
         // i.e. those containing super vertices.
-        match (u, v, w) {
-            (VertexIdx::Vertices(_), VertexIdx::Vertices(_), VertexIdx::Vertices(_)) => {
-                self.triangles.insert((u, v, w));
-                //self.triangles.insert((v, w, u));
-                //self.triangles.insert((w, u, v));
-            },
-            _ => ()
+        if let (VertexIdx::Vertices(_), VertexIdx::Vertices(_), VertexIdx::Vertices(_)) = (u, v, w) {
+            self.triangles.insert((u, v, w));
+            //self.triangles.insert((v, w, u));
+            //self.triangles.insert((w, u, v));
         }
     
         self.vertices.insert((u, v), w);
@@ -363,16 +305,16 @@ impl DelaunayTriangulation {
     }
 
     pub fn enforce_edge(&mut self, u: VertexIdx, v: VertexIdx, vertices: &[Point2<f32>]) {
-        if let Some(_) = self.adjacent(u, v) {
+        if self.adjacent(u, v).is_some() {
             return;
         }
 
-        if let Some(_) = self.adjacent(v, u) {
+        if self.adjacent(v, u).is_some() {
             return;
         }
 
         // Find a triangle containing u
-        if let Some((mut a, mut b, mut c)) = self.find_triangle_containing_u(u, v, vertices) {
+        if let Some((a, mut b, mut c)) = self.find_triangle_containing_u(u, v, vertices) {
             // u == a
             // We know here that uv intersects (b, c)
 
@@ -483,20 +425,6 @@ impl DelaunayTriangulation {
 
         triangles
     }
-
-    fn flip_edge(&mut self, u: VertexIdx, v: VertexIdx) {
-        match (self.adjacent(u, v), self.adjacent(v, u)) {
-            (Some(w), Some(x)) => {
-                self.delete_triangle(u, v, w);
-                self.delete_triangle(v, u, x);
-
-                self.add_triangle(x, w, u);
-                self.add_triangle(w, x, v);
-            },
-            // no quad found
-            _ => ()
-        }
-    }
 }
 
 impl IntoIterator for DelaunayTriangulation {
@@ -506,14 +434,12 @@ impl IntoIterator for DelaunayTriangulation {
     fn into_iter(self) -> Self::IntoIter {
         TriangleIntoIterator {
             triangles: self.triangles.into_iter(),
-            vertices: self.vertices,
         }
     }
 }
 
 pub struct TriangleIntoIterator {
     triangles: std::collections::hash_set::IntoIter<(VertexIdx, VertexIdx, VertexIdx)>,
-    vertices: HashMap<(VertexIdx, VertexIdx), VertexIdx>,
 }
 impl Iterator for TriangleIntoIterator {
     type Item = [usize; 3];
@@ -577,7 +503,7 @@ fn in_circumcircle(u: VertexIdx, v: VertexIdx, w: VertexIdx, x: VertexIdx, verti
 mod tests {
     use super::DelaunayTriangulation;
     use crate::geometry::coord::Point2;
-    use crate::VertexIdx;
+    
 
     /*#[test]
     fn test_triangulate() {
@@ -600,7 +526,7 @@ mod tests {
             Point2::new(0.14206064, 0.8896956),
             Point2::new(0.007408619, 0.17449331),
         ];
-        for t in DelaunayTriangulation::from_vertices(&vertices).into_iter() {
+        for t in DelaunayTriangulation::from_vertices(vertices).into_iter() {
             println!("{:?}", t);
         }
     }

@@ -1,4 +1,4 @@
-use crate::geometry::coord::{Point2, Vertex};
+use crate::geometry::coord::Vertex;
 trait Noise<Sample: Vertex> {
     fn noise(&self, point: &Sample) -> f32;
 }
