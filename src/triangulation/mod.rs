@@ -8,7 +8,7 @@ use crate::geometry::closed_polyline::ClosedPolyline;
 use std::collections::{HashMap, HashSet};
 #[derive(Debug)]
 pub struct DelaunayTriangulation {
-    vertices: HashMap<(VertexIdx, VertexIdx), VertexIdx>,
+    pub vertices: HashMap<(VertexIdx, VertexIdx), VertexIdx>,
     pub triangles: HashSet<(VertexIdx, VertexIdx, VertexIdx)>,
 }
 
@@ -338,7 +338,7 @@ impl DelaunayTriangulation {
         self.vertices.remove(&(w, u));
     }
 
-    fn adjacent(&self, u: VertexIdx, v: VertexIdx) -> Option<VertexIdx> {
+    pub fn adjacent(&self, u: VertexIdx, v: VertexIdx) -> Option<VertexIdx> {
         self.vertices.get(&(u, v)).cloned()
     }
 

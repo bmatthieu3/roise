@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 
+use crate::geometry::coord::Vertex;
 use crate::triangulation::DelaunayTriangulation;
 use crate::Point2;
 use crate::VertexIdx;
@@ -37,25 +38,44 @@ impl Ord for Node {
 impl Eq for Node {}
 
 pub trait Metric {
-    fn barycenter(&self) -> Point2<f32>;
+    fn barycenter(&self, vertices: &[Point2<f32>]) -> Point2<f32>;
 
-    fn distance2_to<T>(&self, other: &T) -> f32
+    fn distance2_to<T>(&self, other: &T, vertices: &[Point2<f32>]) -> f32
     where
         T: Metric,
     {
-        let dp = self.barycenter() - other.barycenter();
+        let dp = self.barycenter(vertices) - other.barycenter(vertices);
 
         dp.dot(&dp)
     }
 }
 
-impl Metric for Point2<f32> {
-    fn barycenter(&self) -> Point2<f32> {
-        *self
+impl Metric for VertexIdx {
+    fn barycenter(&self, vertices: &[Point2<f32>]) -> Point2<f32> {
+        *self.get_vertex(vertices)
+    }
+}
+
+impl<T, const N: usize> Metric for [T; N]
+where 
+    T: Metric
+{
+    fn barycenter(&self, vertices: &[Point2<f32>]) -> Point2<f32> {
+        self.into_iter()
+            .map(|m| {
+                m.barycenter(vertices)
+            })
+            .sum::<Point2<f32>>() / (self.len() as f32)
     }
 }
 
 impl Graph {
+    pub fn from_adjancy_map(adj: HashMap<usize, Vec<usize>>) -> Self {
+        Self {
+            adj
+        }
+    }
+
     pub fn from_triangulation(triangulation: &DelaunayTriangulation) -> Graph {
         // Build an edge map
         let mut edges: HashMap<(VertexIdx, VertexIdx), usize> = HashMap::new();
@@ -89,7 +109,8 @@ impl Graph {
         &self,
         start: usize,
         end: usize,
-        geometries: &[T],
+        nodes: &[T],
+        vertices: &[Point2<f32>]
     ) -> Option<Vec<usize>> {
         let mut came_from: HashMap<usize, usize> = HashMap::new();
 
@@ -97,7 +118,7 @@ impl Graph {
         let mut open_list_set = HashMap::new();
         let node = Node {
             cost: 0.0,
-            heuristic: geometries[start].distance2_to(&geometries[end]), // euclidean distance
+            heuristic: nodes[start].distance2_to(&nodes[end], vertices), // euclidean distance
             idx: start,
         };
         open_list_set.insert(start, node.clone());
@@ -133,9 +154,9 @@ impl Graph {
                     // Neighbor already included in path are discarded
                     if let std::collections::hash_map::Entry::Vacant(e) = came_from.entry(neigh_idx)
                     {
-                        let curr_neigh_cost =
-                            curr.cost + geometries[curr.idx].distance2_to(&geometries[neigh_idx]);
-                        //let curr_neigh_cost = curr.cost + 1.0;
+                        //let curr_neigh_cost =
+                        //    curr.cost + nodes[curr.idx].distance2_to(&nodes[neigh_idx], vertices);
+                        let curr_neigh_cost = curr.cost + 1.0;
 
                         let needs_update = match open_list_set.get(&neigh_idx) {
                             Some(neigh_node) => neigh_node.cost > curr_neigh_cost,
@@ -148,7 +169,7 @@ impl Graph {
                                 idx: neigh_idx,
                                 cost: curr_neigh_cost,
                                 heuristic: curr_neigh_cost
-                                    + geometries[neigh_idx].distance2_to(&geometries[end]),
+                                    + nodes[neigh_idx].distance2_to(&nodes[end], vertices),
                             };
                             open_list_set.insert(neigh_idx, node.clone());
                             open_list.push(node);
@@ -167,7 +188,9 @@ impl Graph {
 #[cfg(test)]
 mod tests {
     use crate::geometry::closed_polyline::ClosedPolyline;
+    use crate::graph::Metric;
     use crate::noise::Gradient;
+    use crate::VertexIdx;
     use image::Rgb;
     use image::RgbImage;
     use imageproc::drawing::draw_line_segment_mut;
@@ -180,7 +203,7 @@ mod tests {
     #[test]
     fn test_astar_simple_square() {
         // Build geometry for 4 nodes in a square
-        let geometries = vec![
+        let vertices = vec![
             Point2::new(0.0, 0.0), // node 0
             Point2::new(1.0, 0.0), // node 1
             Point2::new(1.0, 1.0), // node 2
@@ -198,7 +221,7 @@ mod tests {
 
         // Call your A* (assuming signature like):
         // fn astar(graph: &Graph, geometries: &[Point2<f32>], start: usize, goal: usize) -> Option<Vec<usize>>
-        let path = graph.find_path(0, 2, &geometries).expect("no path found");
+        let path = graph.find_path(0, 2, &VertexIdx::from_range(0..4), &vertices).expect("no path found");
 
         // Path should be 0 -> 1 -> 2 or 0 -> 3 -> 2
         assert!(
@@ -211,7 +234,7 @@ mod tests {
     #[test]
     fn test_astar_3x3_grid() {
         // 3x3 grid positions (row-major order)
-        let geometries = vec![
+        let vertices = vec![
             Point2::new(0.0, 0.0), // 0
             Point2::new(1.0, 0.0), // 1
             Point2::new(2.0, 0.0), // 2
@@ -243,7 +266,7 @@ mod tests {
 
         let graph = Graph { adj };
 
-        let path = graph.find_path(0, 8, &geometries).expect("no path found");
+        let path = graph.find_path(0, 8, &VertexIdx::from_range(0..9), &vertices).expect("no path found");
 
         // Path should start at 0 and end at 8
         assert_eq!(*path.first().unwrap(), 0);
@@ -278,17 +301,19 @@ mod tests {
             .collect::<Vec<_>>();
 
         let triangulation = DelaunayTriangulation::from_contours(&contours);
-        let barycenters = triangulation
+        
+        let graph = Graph::from_triangulation(&triangulation);
+
+        let triangles = triangulation
             .triangles
             .iter()
             .map(|(u, v, w)| {
-                (u.get_vertex(&vertices) + v.get_vertex(&vertices) + w.get_vertex(&vertices)) / 3.0
+                [*u, *v, *w]
             })
-            .collect::<Vec<Point2<f32>>>();
-        let graph = Graph::from_triangulation(&triangulation);
+            .collect::<Vec<_>>();
 
         let path = graph
-            .find_path(100, 600, &barycenters)
+            .find_path(100, 600, &triangles, &vertices)
             .expect("no path found");
 
         let (w, h) = (1024.0, 1024.0);
@@ -305,10 +330,12 @@ mod tests {
         }
 
         for (&idx1, &idx2) in path.iter().zip(path.iter().skip(1)) {
+            let b1 = triangles[idx1].barycenter(&vertices);
+            let b2 = triangles[idx2].barycenter(&vertices);
             draw_line_segment_mut(
                 &mut img,
-                (barycenters[idx1].x * w, barycenters[idx1].y * h), // start point
-                (barycenters[idx2].x * w, barycenters[idx2].y * h), // end point
+                (b1.x * w, b1.y * h), // start point
+                (b2.x * w, b2.y * h), // end point
                 Rgb([255u8, 0u8, 0u8]),                             // RGB colors
             );
         }
@@ -372,26 +399,6 @@ mod tests {
                     (barycenters[*n_idx].x * w, barycenters[*n_idx].y * h), // end point
                     Rgb([255u8, 0u8, 255u8]),                               // RGB colors
                 );
-                /*} else {
-                    dbg!(t_idx, neigh_neigh_indices);
-
-                    draw_line_segment_mut(
-                        &mut img,
-                        (barycenters[*t_idx].x * w, barycenters[*t_idx].y * h),              // start point
-                        (barycenters[*n_idx].x * w, barycenters[*n_idx].y * h),            // end point
-                        Rgb([255u8, 0u8, 0u8]), // RGB colors
-                    );
-                }*/
-                //
-
-                /*for nn_idx in neigh_neigh_indices {
-                    draw_line_segment_mut(
-                        &mut img,
-                        (barycenters[*n_idx].x * w, 1.0 + barycenters[*n_idx].y * h),              // start point
-                        (barycenters[*nn_idx].x * w, 1.0 + barycenters[*nn_idx].y * h),            // end point
-                        Rgb([255u8, 255u8, 0u8]), // RGB colors
-                    );
-                }*/
             }
         }
 

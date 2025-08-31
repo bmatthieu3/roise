@@ -28,6 +28,12 @@ pub enum VertexIdx {
     Vertices(usize),
 }
 
+impl VertexIdx {
+    pub fn from_range(indices: std::ops::Range<usize>) -> Vec<Self> {
+        (indices.start..indices.end).map(|idx| VertexIdx::Vertices(idx)).collect()
+    }
+}
+
 impl PartialOrd for VertexIdx {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         match (self, other) {

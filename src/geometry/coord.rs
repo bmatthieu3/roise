@@ -49,6 +49,14 @@ impl Add for Point2<f32> {
         Self::new(self.x + other.x, self.y + other.y)
     }
 }
+
+use std::iter::Sum;
+impl Sum<Point2<f32>> for Point2<f32> {
+    fn sum<I: Iterator<Item = Point2<f32>>>(iter: I) -> Self {
+        iter.fold(Point2::new(0.0, 0.0), |acc, p| Point2::new(acc.x + p.x, acc.y + p.y))
+    }
+}
+
 impl Add for &Point2<f32> {
     type Output = Point2<f32>;
 
