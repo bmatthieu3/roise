@@ -90,5 +90,7 @@ for (&idx1, &idx2) in path.iter().zip(path.iter().skip(1)) {
 img.save("nav_mesh_portals.png").unwrap();
 
 ```
-<img width="1024" height="1024" alt="coutours_triangulated2" src="https://github.com/user-attachments/assets/5a14a1c2-0124-44eb-8944-48085824cda9" />
+
+<img width="1024" height="1024" alt="nav_mesh_portals" src="https://github.com/user-attachments/assets/55f628f5-c97d-44b7-8bb8-208d68ec5716" />
+
 
