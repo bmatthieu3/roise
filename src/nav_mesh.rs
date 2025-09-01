@@ -1,5 +1,5 @@
 use crate::geometry::coord::{Normed, Vertex};
-use crate::{graph, Point2};
+use crate::{graph, Point2, Triangle};
 use std::collections::HashMap;
 use crate::VertexIdx;
 use crate::graph::{Graph, Metric};
@@ -15,6 +15,21 @@ pub struct NavMesh {
     /// the graph containing the adjency map and allowing a* algorithm
     pub graph: Graph,
     // TODO: spatial index
+}
+
+struct EndPointPortal {
+    id: usize,
+    triangle: Triangle,
+}
+
+#[derive(Debug)]
+struct Portal<'a> {
+    pub left: &'a Point2<f32>,
+    pub right: &'a Point2<f32>
+}
+
+fn is_left_to(s: &Point2<f32>, a: &Point2<f32>, b: &Point2<f32>) -> bool {
+    (*b - *s).det(&(*a - *s)) <= 0.0
 }
 
 pub type PortalId = usize;
@@ -99,153 +114,156 @@ impl NavMesh {
         }
     }
 
-    fn find_path_through_portals(&self, start: Point2<f32>, end: Point2<f32>, vertices: &[Point2<f32>]) -> Option<Vec<PortalId>> {
-        // find the triangle in which the start and end points are
-        use crate::Triangle;
-
-        let mut start_portal_id = None;
-        let mut end_portal_id = None;
-
+    fn find_triangle_containing_point(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> Option<Triangle> {
+        // TODO use spatial index here
         for (u, v, w) in &self.triangulation.triangles {
             let u = *u;
             let v = *v;
             let w = *w;
-            if Triangle([u, v, w]).contains(&start, vertices) {
-                // choose the starting portal
-                let e1 = if u.id() < v.id() {
-                    [u, v]
-                } else {
-                    [v, u]
-                };
-                let e2 = if u.id() < w.id() {
-                    [u, w]
-                } else {
-                    [w, u]
-                };
-                let e3 = if v.id() < w.id() {
-                    [v, w]
-                } else {
-                    [w, v]
-                };
-
-                let a = (e1.barycenter(vertices) - start).magnitude_squared();
-                let b = (e2.barycenter(vertices) - start).magnitude_squared();
-                let c = (e3.barycenter(vertices) - start).magnitude_squared();
-
-                match (self.portals_id.get(&e1), self.portals_id.get(&e2), self.portals_id.get(&e3)) {
-                    (Some(i), Some(j), Some(k)) => {
-                        if a < b && a < c {
-                            start_portal_id = Some(*i);
-                        } else if b < a && b < c {
-                            start_portal_id = Some(*j);
-                        } else {
-                            start_portal_id = Some(*k);
-                        }
-                    }
-                    (Some(i), Some(j), None) => {
-                        if a < b {
-                            start_portal_id = Some(*i);
-                        } else {
-                            start_portal_id = Some(*j);
-                        }
-                    }
-                    (None, Some(j), Some(k)) => {
-                        if b < c {
-                            start_portal_id = Some(*j);
-                        } else {
-                            start_portal_id = Some(*k);
-                        }
-                    }
-                    (Some(i), None, Some(k)) => {
-                        if a < c {
-                            start_portal_id = Some(*i);
-                        } else {
-                            start_portal_id = Some(*k);
-                        }
-                    }
-                    (Some(i), None, None) => {
-                        start_portal_id = Some(*i);
-                    }
-                    (None, Some(j), None) => {
-                        start_portal_id = Some(*j);
-                    }
-                    (None, None, Some(k)) => {
-                        start_portal_id = Some(*k);
-                    }
-                    _ => ()
-                }
-            }
-
-            if Triangle([u, v, w]).contains(&end, vertices) {
-                // choose the starting portal
-                let e1 = if u.id() < v.id() {
-                    [u, v]
-                } else {
-                    [v, u]
-                };
-                let e2 = if u.id() < w.id() {
-                    [u, w]
-                } else {
-                    [w, u]
-                };
-                let e3 = if v.id() < w.id() {
-                    [v, w]
-                } else {
-                    [w, v]
-                };
-
-                let a = (e1.barycenter(vertices) - end).magnitude_squared();
-                let b = (e2.barycenter(vertices) - end).magnitude_squared();
-                let c = (e3.barycenter(vertices) - end).magnitude_squared();
-
-                match (self.portals_id.get(&e1), self.portals_id.get(&e2), self.portals_id.get(&e3)) {
-                    (Some(i), Some(j), Some(k)) => {
-                        if a < b && a < c {
-                            end_portal_id = Some(*i);
-                        } else if b < a && b < c {
-                            end_portal_id = Some(*j);
-                        } else {
-                            end_portal_id = Some(*k);
-                        }
-                    }
-                    (Some(i), Some(j), None) => {
-                        if a < b {
-                            end_portal_id = Some(*i);
-                        } else {
-                            end_portal_id = Some(*j);
-                        }
-                    }
-                    (None, Some(j), Some(k)) => {
-                        if b < c {
-                            end_portal_id = Some(*j);
-                        } else {
-                            end_portal_id = Some(*k);
-                        }
-                    }
-                    (Some(i), None, Some(k)) => {
-                        if a < c {
-                            end_portal_id = Some(*i);
-                        } else {
-                            end_portal_id = Some(*k);
-                        }
-                    }
-                    (Some(i), None, None) => {
-                        end_portal_id = Some(*i);
-                    }
-                    (None, Some(j), None) => {
-                        end_portal_id = Some(*j);
-                    }
-                    (None, None, Some(k)) => {
-                        end_portal_id = Some(*k);
-                    }
-                    _ => ()
-                }
+            let tri = Triangle([u, v, w]);
+            if tri.contains(p, vertices) {
+                return Some(tri);
             }
         }
 
-        if let (Some(start_portal_id), Some(end_portal_id)) = (start_portal_id, end_portal_id) {
-            self.graph
-                .find_path(start_portal_id, end_portal_id, &self.portals, &vertices)
+        None
+    }
+
+   
+
+    fn find_nearest_portal(&self, p: &Point2<f32>, vertices: &[Point2<f32>]) -> Option<EndPointPortal> {
+        self.find_triangle_containing_point(p, vertices).and_then(|t| {
+            let Triangle([u, v, w]) = t.clone();
+
+            let e1 = if u.id() < v.id() {
+                [u, v]
+            } else {
+                [v, u]
+            };
+            let e2 = if u.id() < w.id() {
+                [u, w]
+            } else {
+                [w, u]
+            };
+            let e3 = if v.id() < w.id() {
+                [v, w]
+            } else {
+                [w, v]
+            };
+
+            let a = (e1.barycenter(vertices) - *p).magnitude_squared();
+            let b = (e2.barycenter(vertices) - *p).magnitude_squared();
+            let c = (e3.barycenter(vertices) - *p).magnitude_squared();
+
+            match (self.portals_id.get(&e1), self.portals_id.get(&e2), self.portals_id.get(&e3)) {
+                (Some(i), Some(j), Some(k)) => {
+                    if a < b && a < c {
+                        Some(EndPointPortal {
+                            id: *i,
+                            triangle: t
+                        })
+                    } else if b < a && b < c {
+                        Some(EndPointPortal {
+                            id: *j,
+                            triangle: t
+                        })
+                    } else {
+                        Some(EndPointPortal {
+                            id: *k,
+                            triangle: t
+                        })
+                    }
+                }
+                (Some(i), Some(j), None) => {
+                    if a < b {
+                        Some(EndPointPortal {
+                            id: *i,
+                            triangle: t
+                        })
+                    } else {
+                        Some(EndPointPortal {
+                            id: *j,
+                            triangle: t
+                        })
+                    }
+                }
+                (None, Some(j), Some(k)) => {
+                    if b < c {
+                        Some(EndPointPortal {
+                            id: *j,
+                            triangle: t
+                        })
+                    } else {
+                        Some(EndPointPortal {
+                            id: *k,
+                            triangle: t
+                        })
+                    }
+                }
+                (Some(i), None, Some(k)) => {
+                    if a < c {
+                        Some(EndPointPortal {
+                            id: *i,
+                            triangle: t
+                        })
+                    } else {
+                        Some(EndPointPortal {
+                            id: *k,
+                            triangle: t
+                        })
+                    }
+                }
+                (Some(i), None, None) => {
+                    Some(EndPointPortal {
+                        id: *i,
+                        triangle: t
+                    })
+                }
+                (None, Some(j), None) => {
+                    Some(EndPointPortal {
+                        id: *j,
+                        triangle: t
+                    })
+                }
+                (None, None, Some(k)) => {
+                    Some(EndPointPortal {
+                        id: *k,
+                        triangle: t
+                    })
+                }
+                _ => None
+            }
+        })
+    }
+
+    fn find_path_through_portals(&self, start: Point2<f32>, end: Point2<f32>, vertices: &[Point2<f32>]) -> Option<Vec<PortalId>> {
+        // find the triangle in which the start and end points are
+        use crate::Triangle;
+
+        let start_portal = self.find_nearest_portal(&start, vertices);
+        let end_portal = self.find_nearest_portal(&end, vertices);
+
+        if let (Some(EndPointPortal { id: start_id, triangle: Triangle([su, sv, sw]) }), Some(EndPointPortal { id: end_id, triangle: end_t })) = (start_portal, end_portal) {
+            let mut portals = self.graph
+                .find_path(start_id, end_id, &self.portals, &vertices);
+
+            if let Some(mut portals) = portals.as_mut() {
+                if portals.len() > 1 {
+                    let p1 = self.portals[portals[0]];
+                    let p2 = self.portals[portals[1]];
+
+                    // check if p1 and p2 belongs to the starting triangle
+                    let t1_in_portal = su == p1[0] || su == p1[1] || su == p2[0] || su == p2[1];
+                    let t2_in_portal = sv == p1[0] || sv == p1[1] || sv == p2[0] || sv == p2[1];
+                    let t3_in_portal = sw == p1[0] || sw == p1[1] || sw == p2[0] || sw == p2[1];
+
+                    if t1_in_portal && t2_in_portal && t3_in_portal {
+                        portals.remove(0);
+                    }
+                }
+            }
+
+            portals
         } else {
             None
         }
@@ -253,136 +271,106 @@ impl NavMesh {
 
     pub fn find_path(&self, start: Point2<f32>, end: Point2<f32>, vertices: &[Point2<f32>]) -> Option<Vec<Point2<f32>>> {
         self.find_path_through_portals(start, end, &vertices).and_then(|portal_ids| {
-            struct Portal<'a> {
-                pub left: &'a Point2<f32>,
-                pub right: &'a Point2<f32>
-            }
-
             // funnel algorithm
             // we first need to order all the vertices indexes following the portals from start to the end of path
-            let mut vertices_idx_strip = vec![];
-            
-            let p1 = self.portals[portal_ids[0]];
-            let p2 = self.portals[portal_ids[1]];
+            let mut portals = Vec::with_capacity(portal_ids.len());
 
-            let mid_portal = p1.barycenter(&vertices);
-            let path_dir = mid_portal - start;
+            let p = self.portals[portal_ids[0]];
 
-            if p1[0] != p2[0] && p1[0] != p2[1] {
-                // 0 is not in common between the 2 portals
-                let is_left = path_dir.det(&(*p1[0].get_vertex(&vertices) - start)) > 0.0;
-                vertices_idx_strip.push((p1[0], dbg!(is_left)));
-
-                let is_left = path_dir.det(&(*p1[1].get_vertex(&vertices) - start)) > 0.0;
-                vertices_idx_strip.push((p1[1], dbg!(is_left)));
-            } else {
-                let is_left = path_dir.det(&(*p1[1].get_vertex(&vertices) - start)) > 0.0;
-                vertices_idx_strip.push((p1[1], dbg!(is_left)));
-
-                let is_left = path_dir.det(&(*p1[0].get_vertex(&vertices) - start)) > 0.0;
-                vertices_idx_strip.push((p1[0], dbg!(is_left)));
+            let mut left = p[0].get_vertex(&vertices);
+            let mut right = p[1].get_vertex(&vertices);
+            if is_left_to(&start, right, left) {
+                std::mem::swap(&mut right, &mut left);
             }
+            portals.push(Portal {
+                left,
+                right
+            });
 
-            for i in 1..(portal_ids.len() - 1) {
-                let prev_portal_id = portal_ids[i - 1];
+            for i in 1..portal_ids.len() {
                 let curr_portal_id = portal_ids[i];
-                let next_portal_id = portal_ids[i + 1];
+                let prev_portal_id = portal_ids[i - 1];
 
-                let p_prev = self.portals[prev_portal_id];
                 let p = self.portals[curr_portal_id];
-                let p_next = self.portals[next_portal_id];
+                let p_prev = self.portals[prev_portal_id];
 
-                let mid_portal = p.barycenter(&vertices);
-                let path_dir = p_next.barycenter(&vertices) - mid_portal;
+                let prev_mid_portal = p_prev.barycenter(&vertices);
 
-                if p[0] == p_prev[0] || p[0] == p_prev[1] {
-                    // add p[1]
-                    let is_left = path_dir.det(&(*p[1].get_vertex(&vertices) - mid_portal)) > 0.0;
-                    vertices_idx_strip.push((p[1], dbg!(is_left)));
-                } else {
-                    // add p[0]
-                    let is_left = path_dir.det(&(*p[0].get_vertex(&vertices) - mid_portal)) > 0.0;
-                    vertices_idx_strip.push((p[0], dbg!(is_left)));
+                let mut left = p[0].get_vertex(&vertices);
+                let mut right = p[1].get_vertex(&vertices);
+                if is_left_to(&prev_mid_portal, right, left) {
+                    std::mem::swap(&mut right, &mut left);
                 }
+                portals.push(Portal {
+                    left,
+                    right
+                });
             }
 
             // append the last portal vertex
-            let prev_portal_id = portal_ids[portal_ids.len() - 2];
-            let curr_portal_id = portal_ids[portal_ids.len() - 1];
-
-            let p_prev = self.portals[prev_portal_id];
-            let p = self.portals[curr_portal_id];
+            /*let p = self.portals[portal_ids[portal_ids.len() - 1]];
             let mid_portal = p.barycenter(&vertices);
             let path_dir = end - mid_portal;
 
-            if p[0] == p_prev[0] || p[0] == p_prev[1] {
-                // add p[1]
-                let is_left = path_dir.det(&(*p[1].get_vertex(&vertices) - mid_portal)) > 0.0;
-                vertices_idx_strip.push((p[1], dbg!(is_left)));
-            } else {
-                // add p[0]
-                let is_left = path_dir.det(&(*p[0].get_vertex(&vertices) - mid_portal)) > 0.0;
-                vertices_idx_strip.push((p[0], dbg!(is_left)));
+            let mut left = p[0].get_vertex(&vertices);
+            let mut right = p[1].get_vertex(&vertices);
+            if path_dir.det(&(*right - mid_portal)) < 0.0 {
+                std::mem::swap(&mut right, &mut left);
             }
+            portals.push(Portal {
+                left,
+                right
+            });*/
 
-            Some(self.apply_funnel(&start, &end, &vertices_idx_strip, vertices))
+            Some(self.apply_funnel(&start, &end, &portals, vertices))
         })
     }
 
-    fn apply_funnel<'a>(&self, mut apex: &'a Point2<f32>, end: &Point2<f32>, funnel: &[(VertexIdx, bool)], vertices: &'a [Point2<f32>]) -> Vec<Point2<f32>> {
-        let (mut funnel_left_idx, mut funnel_right_idx) = if funnel[0].1 { (0, 1) } else { (1, 0) };
-
-        let mut left = funnel[funnel_left_idx].0.get_vertex(vertices);
-        let mut right = funnel[funnel_right_idx].0.get_vertex(vertices);
-
+    fn apply_funnel<'a>(&self, mut apex: &'a Point2<f32>, end: &Point2<f32>, portals: &[Portal<'a>], vertices: &[Point2<f32>]) -> Vec<Point2<f32>> {
         let mut path = vec![*apex];
 
-        let mut i = 2;
-        while i < funnel.len() {
-            let v = funnel[i].0.get_vertex(vertices);
-            let is_cur_left = funnel[i].1;
+        let mut left = portals[0].left;
+        let mut right = portals[0].right;
 
-            if is_cur_left {
-                // v is a 'left' vertex
-                if (*v - *apex).det(&(*left - *apex)) > 0.0 {
-                    // tighten the funnel by the left
-                    left = v;
-                    funnel_left_idx = i;
+        let mut left_portal_id = 0;
+        let mut right_portal_id = 0;
 
-                    // check if the new left is still on the left of the right
-                    if (*v - *apex).det(&(*right - *apex)) > 0.0 {
-                        // right is left to left!
-                        apex = right;
-                        path.push(*right);
-
-                        i = funnel_right_idx;
-                        //path.extend_from_slice(&self.apply_funnel(right, end, &funnel[(funnel_right_idx+1)..], vertices));
-                    }
-                }
-            } else {
-                // v is a 'right' vertex
-                if (*right - *apex).det(&(*v - *apex)) > 0.0 {
-                    // tighten the funnel by the right
-                    right = v;
-                    funnel_right_idx = i;
-
-                    // check if the new right is still on the right of the left
-                    if (*left - *apex).det(&(*v - *apex)) > 0.0 {
-                        // right is left to left!
-                        apex = left;
-                        path.push(*left);
-
-                        i = funnel_left_idx;
-                        //path.extend_from_slice(&self.apply_funnel(left, end, &funnel[(funnel_left_idx+1)..], vertices));
-                        //return path;
-                    }
-                }
+        for (portal_id, &Portal { left: new_left, right: new_right }) in portals.into_iter().enumerate().skip(1) {
+            // v is a 'left' vertex
+            if is_left_to(apex, left, new_left) {
+                // tighten the funnel by the left
+                left = new_left;
+                left_portal_id = portal_id;
             }
-            i += 1;
+
+            // v is a 'right' vertex
+            if is_left_to(apex, new_right, right) {
+                // tighten the funnel by the right
+                right = new_right;
+                right_portal_id = portal_id;
+            }
+
+            // collapse
+            if is_left_to(apex, right, left) {
+                if is_left_to(apex, right, new_left) {
+                    // right is left to left!
+                    apex = right;
+                    path.push(*right);
+
+                    left = portals[right_portal_id].left;
+                    right = portals[right_portal_id].right;
+                } else {
+                    // right is left to left!
+                    apex = left;
+                    path.push(*left);
+
+                    left = portals[left_portal_id].left;
+                    right = portals[left_portal_id].right;
+                }
+            }   
         }
 
         path.push(*end);
-
         path
     }
 }
