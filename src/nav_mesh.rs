@@ -29,7 +29,7 @@ struct Portal<'a> {
 }
 
 fn is_left_to(s: &Point2<f32>, a: &Point2<f32>, b: &Point2<f32>) -> bool {
-    (*b - *s).det(&(*a - *s)) <= 0.0
+    (*b - *s).det(&(*a - *s)) < 0.0
 }
 
 pub type PortalId = usize;
@@ -269,6 +269,64 @@ impl NavMesh {
         }
     }
 
+    pub fn find_path_portals<'a>(&self, start: Point2<f32>, end: Point2<f32>, vertices: &'a [Point2<f32>]) -> Option<Vec<Portal<'a>>> {
+        self.find_path_through_portals(start, end, &vertices).and_then(move |portal_ids| {
+            // funnel algorithm
+            // we first need to order all the vertices indexes following the portals from start to the end of path
+            let mut portals = Vec::with_capacity(portal_ids.len());
+
+            let p = self.portals[portal_ids[0]];
+
+            let mut left = p[0].get_vertex(&vertices);
+            let mut right = p[1].get_vertex(&vertices);
+            if is_left_to(&start, right, left) {
+                std::mem::swap(&mut right, &mut left);
+            }
+            portals.push(Portal {
+                left,
+                right
+            });
+
+            for i in 1..portal_ids.len() {
+                let curr_portal_id = portal_ids[i];
+                let prev_portal_id = portal_ids[i - 1];
+
+                let p = self.portals[curr_portal_id];
+                let p_prev = self.portals[prev_portal_id];
+
+                let prev_mid_portal = p_prev.barycenter(&vertices);
+
+                let mut left = p[0].get_vertex(&vertices);
+                let mut right = p[1].get_vertex(&vertices);
+                if is_left_to(&prev_mid_portal, right, left) {
+                    std::mem::swap(&mut right, &mut left);
+                }
+                portals.push(Portal {
+                    left,
+                    right
+                });
+            }
+
+            Some(portals)
+
+            // append the last portal vertex
+            /*let p = self.portals[portal_ids[portal_ids.len() - 1]];
+            let mid_portal = p.barycenter(&vertices);
+            let path_dir = end - mid_portal;
+
+            let mut left = p[0].get_vertex(&vertices);
+            let mut right = p[1].get_vertex(&vertices);
+            if path_dir.det(&(*right - mid_portal)) < 0.0 {
+                std::mem::swap(&mut right, &mut left);
+            }
+            portals.push(Portal {
+                left,
+                right
+            });*/
+        })
+    }
+
+
     pub fn find_path(&self, start: Point2<f32>, end: Point2<f32>, vertices: &[Point2<f32>]) -> Option<Vec<Point2<f32>>> {
         self.find_path_through_portals(start, end, &vertices).and_then(|portal_ids| {
             // funnel algorithm
@@ -327,48 +385,63 @@ impl NavMesh {
     }
 
     fn apply_funnel<'a>(&self, mut apex: &'a Point2<f32>, end: &Point2<f32>, portals: &[Portal<'a>], vertices: &[Point2<f32>]) -> Vec<Point2<f32>> {
-        let mut path = vec![*apex];
+        let mut apex = *apex;
+        let mut path = vec![apex];
 
-        let mut left = portals[0].left;
-        let mut right = portals[0].right;
+        let mut left = *portals[0].left;
+        let mut right = *portals[0].right;
 
         let mut left_portal_id = 0;
         let mut right_portal_id = 0;
 
-        for (portal_id, &Portal { left: new_left, right: new_right }) in portals.into_iter().enumerate().skip(1) {
+        let mut portal_id = 1;
+        while portal_id < portals.len() {
+            let Portal { left: new_left, right: new_right } = portals[portal_id];
+
             // v is a 'left' vertex
-            if is_left_to(apex, left, new_left) {
+            if apex != *new_left && apex != left && left != *new_left && is_left_to(&apex, &left, new_left) {
                 // tighten the funnel by the left
-                left = new_left;
+                left = *new_left;
                 left_portal_id = portal_id;
             }
 
             // v is a 'right' vertex
-            if is_left_to(apex, new_right, right) {
+            if apex != *new_right && apex != right && right != *new_right && is_left_to(&apex, new_right, &right) {
                 // tighten the funnel by the right
-                right = new_right;
+                right = *new_right;
                 right_portal_id = portal_id;
             }
+                            portal_id += 1;
+
 
             // collapse
-            if is_left_to(apex, right, left) {
-                if is_left_to(apex, right, new_left) {
-                    // right is left to left!
-                    apex = right;
-                    path.push(*right);
-
-                    left = portals[right_portal_id].left;
-                    right = portals[right_portal_id].right;
-                } else {
-                    // right is left to left!
+            if is_left_to(&apex, &right, &left) {
+                if is_left_to(&apex, new_right, &left) {
                     apex = left;
-                    path.push(*left);
+                    portal_id = left_portal_id;
 
-                    left = portals[left_portal_id].left;
-                    right = portals[left_portal_id].right;
-                }
-            }   
+                    /*while left == *portals[portal_id + 1].left {
+                        portal_id += 1;
+                    }*/
+                } else {
+                    apex = right;
+                    portal_id = right_portal_id;
+
+                    /*while right == *portals[portal_id + 1].right {
+                        portal_id += 1;
+                    }*/
+                };
+                path.push(apex);
+
+                left = *portals[portal_id].left;
+                right = *portals[portal_id].right;
+            }
+
+                    
+
         }
+
+
 
         path.push(*end);
         path
@@ -446,7 +519,7 @@ mod tests {
         img.save("nav_mesh_portals.png").unwrap();
     }
 
-        #[test]
+    #[test]
     fn test_navmesh_funnel() {
         let gradient = Gradient::new();
         let contours = crate::triangulation::marching_square::extract_isocontours_from_heightmap(
@@ -471,8 +544,8 @@ mod tests {
 
         let nav_mesh = NavMesh::from_triangulation(triangulation);
 
-        let start = Point2 { x: 0.1, y: 0.1 };
-        let end = Point2 { x: 0.8, y: 0.6 };
+        let start = Point2 { x: rand::random::<f32>(), y: rand::random::<f32>() };
+        let end = Point2 { x: rand::random::<f32>(), y: rand::random::<f32>() };
 
         let path = nav_mesh
             .find_path(start, end, &vertices)
@@ -519,5 +592,109 @@ mod tests {
         }
 
         img.save("nav_mesh_funnel.png").unwrap();
+    }
+
+    use crate::nav_mesh::Portal;
+    #[test]
+    fn test_navmesh_portals() {
+        let gradient = Gradient::new();
+        let contours = crate::triangulation::marching_square::extract_isocontours_from_heightmap(
+            200,
+            |x: Point2<f32>| {
+                let noise =
+                    gradient.fbm(&(x * 2.1), 0.6, 3.01) * std::f32::consts::FRAC_1_SQRT_2 + 0.5; // in [0, 1]
+                noise >= 0.45
+            },
+        );
+
+        let vertices = contours
+            .iter()
+            .cloned()
+            .flat_map(|ClosedPolyline { mut vertices }| {
+                let _ = vertices.pop();
+                vertices
+            })
+            .collect::<Vec<_>>();
+
+        let triangulation = DelaunayTriangulation::from_contours(&contours);
+
+        let nav_mesh = NavMesh::from_triangulation(triangulation);
+
+        let start = Point2 { x: rand::random::<f32>(), y: rand::random::<f32>() };
+        let end = Point2 { x: rand::random::<f32>(), y: rand::random::<f32>() };
+
+        let portals = nav_mesh
+            .find_path_portals(start, end, &vertices)
+            .expect("no path found");
+
+        let path_portals = nav_mesh
+            .find_path_through_portals(start, end, &vertices)
+            .expect("no path found");
+
+        let path = nav_mesh
+            .find_path(start, end, &vertices)
+            .expect("no path found");
+
+        let (w, h) = (1024.0, 1024.0);
+        let mut img = RgbImage::new(w as u32, h as u32);
+        for t in nav_mesh.triangulation {
+            for (&idx1, &idx2) in t.iter().zip(t.iter().cycle().skip(1)) {
+                draw_line_segment_mut(
+                    &mut img,
+                    (vertices[idx1].x * w, vertices[idx1].y * h), // start point
+                    (vertices[idx2].x * w, vertices[idx2].y * h), // end point
+                    Rgb([69u8, 203u8, 133u8]),                    // RGB colors
+                );
+            }
+        }
+
+        for (i, &idx1) in path_portals.iter().enumerate() {
+            let [u, v] = nav_mesh.portals[idx1];
+
+            let p1 = u.get_vertex(&vertices);
+            let p2 = v.get_vertex(&vertices);
+
+            if i == 0 {
+                draw_line_segment_mut(
+                    &mut img,
+                    (p1.x * w, p1.y * h), // start point
+                    (p2.x * w, p2.y * h), // end point
+                    Rgb([0u8, 255u8, 0u8]),                             // RGB colors
+                );
+            } else {
+                draw_line_segment_mut(
+                    &mut img,
+                    (p1.x * w, p1.y * h), // start point
+                    (p2.x * w, p2.y * h), // end point
+                    Rgb([0u8, 255u8, 255u8]),                             // RGB colors
+                );
+            }
+        }
+
+        for Portal { left, right } in portals.iter() {
+            draw_cross_mut(
+                &mut img,
+                Rgb([255u8, 20u8, 13u8]),
+                (left.x * w) as i32,              // start point
+                (left.y * h) as i32,            // end point
+            );
+            draw_cross_mut(
+                &mut img,
+                Rgb([25u8, 20u8, 255u8]),
+                (right.x * w) as i32,              // start point
+                (right.y * h) as i32,            // end point
+            );
+        }
+
+        for (p1, p2) in path.iter().zip(path.iter().skip(1)) {
+            draw_line_segment_mut(
+                &mut img,
+                (p1.x * w, p1.y * h), // start point
+                (p2.x * w, p2.y * h), // end point
+                Rgb([255u8, 255u8, 0u8]),                             // RGB colors
+            );
+        }
+
+        img.save("nav_mesh_portals.png").unwrap();
     }
 }
