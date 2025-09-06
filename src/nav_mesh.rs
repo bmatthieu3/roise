@@ -243,7 +243,7 @@ impl NavMesh {
         let start_portal = self.find_nearest_portal(&start, vertices);
         let end_portal = self.find_nearest_portal(&end, vertices);
 
-        if let (Some(EndPointPortal { id: start_id, triangle: Triangle([su, sv, sw]) }), Some(EndPointPortal { id: end_id, triangle: end_t })) = (start_portal, end_portal) {
+        if let (Some(EndPointPortal { id: start_id, triangle: Triangle([su, sv, sw]) }), Some(EndPointPortal { id: end_id, triangle: Triangle([eu, ev, ew]) })) = (start_portal, end_portal) {
             let mut portals = self.graph
                 .find_path(start_id, end_id, &self.portals, &vertices);
 
@@ -259,6 +259,20 @@ impl NavMesh {
 
                     if t1_in_portal && t2_in_portal && t3_in_portal {
                         portals.remove(0);
+                    }
+                }
+
+                if portals.len() > 1 {
+                    let p1 = self.portals[portals[portals.len() - 1]];
+                    let p2 = self.portals[portals[portals.len() - 2]];
+
+                    // check if p1 and p2 belongs to the ending triangle
+                    let t1_in_portal = eu == p1[0] || eu == p1[1] || eu == p2[0] || eu == p2[1];
+                    let t2_in_portal = ev == p1[0] || ev == p1[1] || ev == p2[0] || ev == p2[1];
+                    let t3_in_portal = ew == p1[0] || ew == p1[1] || ew == p2[0] || ew == p2[1];
+
+                    if t1_in_portal && t2_in_portal && t3_in_portal {
+                        portals.pop();
                     }
                 }
             }
@@ -380,11 +394,13 @@ impl NavMesh {
                 right
             });*/
 
-            Some(self.apply_funnel(&start, &end, &portals, vertices))
+            Some(self.apply_funnel(&start, &end, portals, vertices))
         })
     }
 
-    fn apply_funnel<'a>(&self, mut apex: &'a Point2<f32>, end: &Point2<f32>, portals: &[Portal<'a>], vertices: &[Point2<f32>]) -> Vec<Point2<f32>> {
+    fn apply_funnel<'a>(&self, mut apex: &'a Point2<f32>, end: &'a Point2<f32>, mut portals: Vec<Portal<'a>>, vertices: &[Point2<f32>]) -> Vec<Point2<f32>> {
+        portals.push(Portal { left: end, right: end });
+        
         let mut apex = *apex;
         let mut path = vec![apex];
 
@@ -398,50 +414,43 @@ impl NavMesh {
         while portal_id < portals.len() {
             let Portal { left: new_left, right: new_right } = portals[portal_id];
 
-            // v is a 'left' vertex
-            if apex != *new_left && apex != left && left != *new_left && is_left_to(&apex, &left, new_left) {
+           if ((apex != *new_left && left != *new_left && is_left_to(&apex, &left, new_left)) || left == apex) {
                 // tighten the funnel by the left
                 left = *new_left;
                 left_portal_id = portal_id;
+
+                if is_left_to(&apex, &right, &left) {
+                    path.push(right);
+                    apex = right;
+
+                    left = apex;
+                    left_portal_id = right_portal_id;
+                    portal_id = right_portal_id;
+
+                    continue;
+                }
             }
 
             // v is a 'right' vertex
-            if apex != *new_right && apex != right && right != *new_right && is_left_to(&apex, new_right, &right) {
+            if ((apex != *new_right && right != *new_right && is_left_to(&apex, new_right, &right)) || right == apex) {
                 // tighten the funnel by the right
                 right = *new_right;
                 right_portal_id = portal_id;
-            }
-                            portal_id += 1;
 
-
-            // collapse
-            if is_left_to(&apex, &right, &left) {
-                if is_left_to(&apex, new_right, &left) {
+                if is_left_to(&apex, &right, &left) {
+                    path.push(left);
                     apex = left;
+
+                    right = apex;
+                    right_portal_id = left_portal_id;
                     portal_id = left_portal_id;
 
-                    /*while left == *portals[portal_id + 1].left {
-                        portal_id += 1;
-                    }*/
-                } else {
-                    apex = right;
-                    portal_id = right_portal_id;
-
-                    /*while right == *portals[portal_id + 1].right {
-                        portal_id += 1;
-                    }*/
-                };
-                path.push(apex);
-
-                left = *portals[portal_id].left;
-                right = *portals[portal_id].right;
+                    continue;
+                }
             }
 
-                    
-
+            portal_id += 1;
         }
-
-
 
         path.push(*end);
         path
@@ -619,6 +628,12 @@ mod tests {
         let triangulation = DelaunayTriangulation::from_contours(&contours);
 
         let nav_mesh = NavMesh::from_triangulation(triangulation);
+
+        //let start = Point2 { x: 0.2, y: 0.2 };
+        //let end = Point2 { x: 0.4, y: 0.8 };
+
+        //let start = Point2 { x: 0.17776436, y: 0.08432096 };
+        //let end =  Point2 { x: 0.56069654, y: 0.43880218 };
 
         let start = Point2 { x: rand::random::<f32>(), y: rand::random::<f32>() };
         let end = Point2 { x: rand::random::<f32>(), y: rand::random::<f32>() };
