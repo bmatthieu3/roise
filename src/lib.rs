@@ -7,7 +7,7 @@ extern crate imageproc;
 extern crate rand;
 
 pub mod graph;
-
+pub mod indexing;
 pub mod geometry;
 pub mod nav_mesh;
 pub mod noise;
