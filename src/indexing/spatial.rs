@@ -1,9 +1,9 @@
 use crate::Point2;
 use std::hash::Hash;
 
-struct Aabb {
-    xy_min: Point2<f32>,
-    xy_max: Point2<f32>,
+pub struct Aabb {
+    pub xy_min: Point2<f32>,
+    pub xy_max: Point2<f32>,
 }
 
 trait Spatial {
@@ -18,8 +18,29 @@ trait Spatial {
     fn id(&self) -> Self::Id;
 }
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+impl Spatial for Point2<f32> {
+    type Id = usize;
+
+    /// Bounding box (for fast insertion/search)
+    fn aabb(&self) -> Aabb {
+        Aabb { xy_min: *self, xy_max: *self }
+    }
+
+    /// Optional: exact geometry check if needed
+    fn contains(&self, point: Point2<f32>) -> bool {
+        *self == point
+    }
+
+    fn id(&self) -> Self::Id {
+        COUNTER.fetch_add(1, Ordering::SeqCst)
+    }
+}
+
 use std::collections::HashMap;
-struct SpatialGrid<T>
+pub struct SpatialGrid<T>
 where
     T: Spatial,
 {
@@ -33,7 +54,15 @@ impl<T> SpatialGrid<T>
 where
     T: Spatial,
 {
-    fn insert(&mut self, obj: T) {
+    pub fn new(cell_size: f32) -> Self {
+        Self {
+            cell_size,
+            cells: HashMap::new(),
+            objects: HashMap::new()
+        }
+    }
+
+    pub fn insert(&mut self, obj: T) {
         let Aabb { xy_min, xy_max } = obj.aabb();
         let id = obj.id();
 
@@ -55,7 +84,7 @@ where
         self.objects.insert(id, obj);
     }
 
-    fn remove(&mut self, id: T::Id) {
+    pub fn remove(&mut self, id: T::Id) {
         if let Some(obj) = self.objects.remove(&id) {
             let Aabb { xy_min, xy_max } = obj.aabb();
             let i_min = (xy_min.x / self.cell_size) as i32;
@@ -76,12 +105,12 @@ where
         }
     }
 
-    fn update(&mut self, obj: T) {
+    pub fn update(&mut self, obj: T) {
         self.remove(obj.id());
         self.insert(obj);
     }
 
-    fn query_point(&self, p: Point2<f32>) -> impl Iterator<Item = &T> {
+    pub fn query_point(&self, p: Point2<f32>) -> impl Iterator<Item = &T> {
         let i = (p.x / self.cell_size) as i32;
         let j = (p.y / self.cell_size) as i32;
 
@@ -93,7 +122,7 @@ where
             .flat_map(move |ids| ids.iter().filter_map(move |id| objects.get(id)))
     }
 
-    fn query_aabb(&self, region: Aabb) -> impl Iterator<Item = &T> {
+    pub fn query_aabb(&self, region: Aabb) -> impl Iterator<Item = &T> {
         let Aabb { xy_min, xy_max } = region;
         let i_min = (xy_min.x / self.cell_size) as i32;
         let j_min = (xy_min.y / self.cell_size) as i32;

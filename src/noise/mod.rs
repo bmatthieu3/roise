@@ -5,5 +5,6 @@ trait Noise<Sample: Vertex> {
 
 mod diamond_square;
 mod gradient;
+mod worley;
 pub use diamond_square::DiamondSquare;
 pub use gradient::Gradient;

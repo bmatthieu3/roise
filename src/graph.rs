@@ -154,9 +154,9 @@ impl Graph {
                     // Neighbor already included in path are discarded
                     if let std::collections::hash_map::Entry::Vacant(e) = came_from.entry(neigh_idx)
                     {
-                        //let curr_neigh_cost =
-                        //    curr.cost + nodes[curr.idx].distance2_to(&nodes[neigh_idx], vertices);
-                        let curr_neigh_cost = curr.cost + 1.0;
+                        let curr_neigh_cost =
+                            curr.cost + nodes[curr.idx].distance2_to(&nodes[neigh_idx], vertices);
+                        //let curr_neigh_cost = curr.cost + 1.0;
 
                         let needs_update = match open_list_set.get(&neigh_idx) {
                             Some(neigh_node) => neigh_node.cost > curr_neigh_cost,

@@ -1,1 +1,1 @@
-mod spatial;
+pub mod spatial;
